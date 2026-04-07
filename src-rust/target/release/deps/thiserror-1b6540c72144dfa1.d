@@ -1,0 +1,14 @@
+/home/benie-joy/My_Projects/CLAUDE/claurst/src-rust/target/release/deps/thiserror-1b6540c72144dfa1.d: /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/benie-joy/My_Projects/CLAUDE/claurst/src-rust/target/release/build/thiserror-92e325efc38a7f72/out/private.rs
+
+/home/benie-joy/My_Projects/CLAUDE/claurst/src-rust/target/release/deps/libthiserror-1b6540c72144dfa1.rlib: /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/benie-joy/My_Projects/CLAUDE/claurst/src-rust/target/release/build/thiserror-92e325efc38a7f72/out/private.rs
+
+/home/benie-joy/My_Projects/CLAUDE/claurst/src-rust/target/release/deps/libthiserror-1b6540c72144dfa1.rmeta: /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs /home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs /home/benie-joy/My_Projects/CLAUDE/claurst/src-rust/target/release/build/thiserror-92e325efc38a7f72/out/private.rs
+
+/home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/lib.rs:
+/home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/aserror.rs:
+/home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/display.rs:
+/home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/var.rs:
+/home/benie-joy/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.18/src/private.rs:
+/home/benie-joy/My_Projects/CLAUDE/claurst/src-rust/target/release/build/thiserror-92e325efc38a7f72/out/private.rs:
+
+# env-dep:OUT_DIR=/home/benie-joy/My_Projects/CLAUDE/claurst/src-rust/target/release/build/thiserror-92e325efc38a7f72/out
