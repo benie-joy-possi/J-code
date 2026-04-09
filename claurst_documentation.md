@@ -1,4 +1,4 @@
-# CLAURST Documentation
+# JET Documentation
 
 ## Table of Contents
 1. [Overview and Purpose](#overview-and-purpose)
@@ -10,7 +10,7 @@
 7. [Next Steps](#next-steps)
 
 ## Overview and Purpose
-CLAURST is a clean-room Rust reimplementation of Claude Code (Anthropic's official AI coding CLI assistant). It behaves functionally identical to the proprietary TypeScript source by following detailed behavioral specifications (found in the `spec/` directory) rather than a direct translation of code. The project provides an efficient, memory-safe, fast terminal AI coding agent using Tokio, Ratatui, and a multi-agent orchestrated infrastructure, while incorporating experimental and unreleased capabilities like the "Buddy" Tamagotchi companion, "Kairos" continuous logging, and the AutoDream memory consolidation engine.
+JET is a clean-room Rust reimplementation of Claude Code (Anthropic's official AI coding CLI assistant). It behaves functionally identical to the proprietary TypeScript source by following detailed behavioral specifications (found in the `spec/` directory) rather than a direct translation of code. The project provides an efficient, memory-safe, fast terminal AI coding agent using Tokio, Ratatui, and a multi-agent orchestrated infrastructure, while incorporating experimental and unreleased capabilities like the "Buddy" Tamagotchi companion, "Kairos" continuous logging, and the AutoDream memory consolidation engine.
 
 ## Repository Structure
 The repository is split into various distinct directories:
@@ -25,18 +25,18 @@ The Rust codebase (`src-rust/`) is structured into a Cargo workspace comprising 
 
 | Crate | Purpose | Key Responsibilities |
 |---------|---------|-----------------------|
-| **`claurst-cli`** | Entry Point | Resolves command-line inputs, configures logging, and bootstraps the CLI. |
-| **`claurst-core`** | Utilities & Types | Stores basic project constants, models, errors, configurations, utilities, and Undercover Mode logic. |
-| **`claurst-commands`** | Slash Commands | Handlers for CLI commands like `/connect`, `/Rocky` (experimental speech types), and `/help`. |
-| **`claurst-tools`** | AI Tool Registry | Executes the 40+ system tools: Bash execution, Web fetching, Glob, File utilities, and more. |
-| **`claurst-api`** | External API | Negotiates connection parameters, manages `reqwest` instances for streaming connections to Anthropic servers, and handles fast-mode ("Penguin"). |
-| **`claurst-query`** | Coordinator | Core business logic handling the Multi-Agent Orchestration ("Coordinator Mode") and memory-consolidation tasks natively. |
-| **`claurst-tui`** | Terminal UI | Rich custom terminal user interface driven by `ratatui` and `crossterm`. Uses markdown enhancements. |
-| **`claurst-mcp`** | MCP Server/Client | Full implementation of the Model Context Protocol to talk with compatible local and remote MCP hosts. |
-| **`claurst-buddy`** | Companion System | The virtual Tamagotchi "companion pet" gacha logic (`Mulberry32` PRNG based). |
-| **`claurst-plugins`**| System Extension | Pluggable module architectures allowing further workspace extensions. |
-| **`claurst-acp`** | Computer Use | Anthropic Computer Protocol handler inside the terminal (known internally as "Chicago"). |
-| **`claurst-bridge`**| Relay Network | External bridging configuration connecting `claude.ai` UI with local telemetry via websocket/JWT relay. |
+| **`jet-cli`** | Entry Point | Resolves command-line inputs, configures logging, and bootstraps the CLI. |
+| **`jet-core`** | Utilities & Types | Stores basic project constants, models, errors, configurations, utilities, and Undercover Mode logic. |
+| **`jet-commands`** | Slash Commands | Handlers for CLI commands like `/connect`, `/Rocky` (experimental speech types), and `/help`. |
+| **`jet-tools`** | AI Tool Registry | Executes the 40+ system tools: Bash execution, Web fetching, Glob, File utilities, and more. |
+| **`jet-api`** | External API | Negotiates connection parameters, manages `reqwest` instances for streaming connections to Anthropic servers, and handles fast-mode ("Penguin"). |
+| **`jet-query`** | Coordinator | Core business logic handling the Multi-Agent Orchestration ("Coordinator Mode") and memory-consolidation tasks natively. |
+| **`jet-tui`** | Terminal UI | Rich custom terminal user interface driven by `ratatui` and `crossterm`. Uses markdown enhancements. |
+| **`jet-mcp`** | MCP Server/Client | Full implementation of the Model Context Protocol to talk with compatible local and remote MCP hosts. |
+| **`jet-buddy`** | Companion System | The virtual Tamagotchi "companion pet" gacha logic (`Mulberry32` PRNG based). |
+| **`jet-plugins`**| System Extension | Pluggable module architectures allowing further workspace extensions. |
+| **`jet-acp`** | Computer Use | Anthropic Computer Protocol handler inside the terminal (known internally as "Chicago"). |
+| **`jet-bridge`**| Relay Network | External bridging configuration connecting `claude.ai` UI with local telemetry via websocket/JWT relay. |
 
 ### Major Dependencies
 - **Async Runtime**: `tokio` (with stream support)
@@ -74,12 +74,12 @@ The project incorporates several feature-gated systems originally discovered via
 Clone the repository, transition to the `src-rust` directory, and utilize Cargo to build:
 
 ```bash
-cd claurst/src-rust
+cd J-code/src-rust
 # Compile locally with release optimizations
 cargo build --release
 
 # Run the command-line interface
-./target/release/claurst
+./target/release/J-code
 ```
 
 *Note: Experimental feature gates can be toggled using Cargo features during compilation if manually implemented within the respective crates.*
@@ -90,7 +90,7 @@ The repository contains basic foundational `ratatui` visual pipeline tests locat
 
 A thorough recommended testing strategy to adopt:
 
-1. **Unit Testing Tool Functions (`claurst-tools`)**
+1. **Unit Testing Tool Functions (`jet-tools`)**
    - Write comprehensive boundary conditions testing the 40+ independent system tools. 
    - Mock file system paths explicitly to test `FileReadTool`, `GrepTool`, `BashTool` logic without side effects.
    - Example to add inside `crates/tools/src/todo_write.rs`:
@@ -101,10 +101,10 @@ A thorough recommended testing strategy to adopt:
      }
      ```
 
-2. **API Interaction Tests (`claurst-api`)**
+2. **API Interaction Tests (`jet-api`)**
    - Mock standard server JSON responses simulating local `reqwest_eventsource` loops, tracking "Penguin mode" fast API invocations securely.
 
-3. **Multi-Agent Concurrency Testing (`claurst-query`)**
+3. **Multi-Agent Concurrency Testing (`jet-query`)**
    - Validate whether "Coordinator Mode" correctly awaits concurrent worker signals. 
    - Ensure the locking mechanisms inherent in the `AutoDream` memory compaction block effectively prevent redundant background sub-agents from overlapping.
 
