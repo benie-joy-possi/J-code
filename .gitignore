@@ -1,0 +1,16 @@
+src-rust/target/
+
+# OS
+.DS_Store
+
+# Refs
+refs/
+
+# Claude
+.claude
+
+# Git
+.gitignore
+
+Agents.md
+plan.md
