@@ -1,6 +1,0 @@
-cargo:rustc-env=BUILD_TIME=2026-04-06T22:16:15.986986386+00:00
-cargo:rustc-env=GIT_COMMIT=acae926
-cargo:rustc-env=PACKAGE_URL=claurst-source-snapshot
-cargo:rustc-env=FEEDBACK_CHANNEL=github
-cargo:rustc-env=ISSUES_EXPLAINER=This build does not include Anthropic internal issue routing.
-cargo:rerun-if-changed=.git/HEAD
