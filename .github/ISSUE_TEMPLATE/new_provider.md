@@ -8,7 +8,13 @@ assignees: ''
 
 ## Provider name
 
-<!-- e.g., Groq, Mistral, Together AI -->
+<!-- e.g., Together AI, Perplexity, deepseek -->
+
+## Is it OpenAI-Compatible?
+
+<!-- Most modern providers use the OpenAI API format. -->
+- [ ] Yes, it is OpenAI-compatible (Recommended)
+- [ ] No, it uses a custom API format
 
 ## Provider API docs
 
@@ -26,4 +32,5 @@ assignees: ''
 
 ## Notes
 
-<!-- Anything special about this provider's API format? OpenAI-compatible? Custom format? -->
+<!-- Anything special about this provider's API format? -->
+<!-- If OpenAI-compatible, just provide the Base URL. -->

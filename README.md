@@ -55,11 +55,11 @@ No lock-in. No forced subscriptions. No telemetry. Just fast, powerful AI coding
 | 🟣 Anthropic (Claude) | ✅ Stable | claude-sonnet, claude-opus, claude-haiku |
 | 🟢 OpenAI | ✅ Stable | gpt-4o, o3, gpt-4-turbo |
 | 🔵 Google Gemini | 🔨 In Progress | gemini-1.5-pro, gemini-flash |
-| 🟡 Groq | 🔨 In Progress | llama3, mixtral — ultra fast inference |
-| 🏠 Ollama (Local) | 🔨 In Progress | Run **any model locally, for free** |
-| 🌐 OpenRouter | 📋 Planned | 200+ models via one API key |
-| 🔴 Mistral | 📋 Planned | mistral-large, codestral |
-| ⚙️ Custom / Self-hosted | 📋 Planned | Any OpenAI-compatible endpoint |
+| 🟡 Groq | ✅ Stable | llama3, mixtral — ultra fast inference |
+| 🏠 Ollama (Local) | ✅ Stable | Run **any model locally, for free** |
+| 🌐 OpenRouter | ✅ Stable | 200+ models via one API key |
+| 🔴 Mistral | ✅ Stable | mistral-large, codestral |
+| ⚙️ Custom / Self-hosted | ✅ Stable | Any OpenAI-compatible endpoint |
 
 Want to add a provider? See [CONTRIBUTING.md → Adding a Provider](./CONTRIBUTING.md#adding-a-new-provider).
 

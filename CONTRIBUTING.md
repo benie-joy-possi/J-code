@@ -63,7 +63,10 @@ Look for [`good-first-issue`](https://github.com/benie-joy-possi/J-code/issues?q
 
 This is the most impactful thing you can contribute right now. Every new provider makes JET useful to a new group of developers.
 
-**Providers we need:** Gemini, Groq, Ollama, Mistral, OpenRouter, Together AI, custom self-hosted endpoints.
+> [!TIP]
+> **Most new providers are OpenAI-compatible.** If the provider you want to add uses the OpenAI API format (like Groq, DeepSeek, or local servers), you can add it in just a few lines of code by adding a factory function to the `OpenAiCompatProvider`.
+
+**Providers we still need:** Gemini, specialized custom models, and further enhancements to existing ones.
 
 ### Step 1: Open an issue first
 
@@ -96,7 +99,26 @@ pub trait Provider: Send + Sync {
 
 You implement this trait for your new provider, and JET will automatically support it everywhere — `/connect`, `/model`, `/providers`, cost tracking, everything.
 
-### Step 3: Create your provider file
+### Step 3: Use the OpenAI-Compatible shortcut (Recommended)
+
+If the provider is OpenAI-compatible, do NOT implement the trait from scratch. Instead, add a factory function to:
+`src-rust/crates/api/src/providers/openai_compat_providers.rs`
+
+Example for a new provider:
+```rust
+pub fn your_provider() -> OpenAiCompatProvider {
+    let key = std::env::var("YOUR_PROVIDER_API_KEY").unwrap_or_default();
+    OpenAiCompatProvider::new(
+        ProviderId::YOUR_PROVIDER,
+        "Your Provider Name",
+        "https://api.yourprovider.com/v1",
+    ).with_api_key(key)
+}
+```
+
+### Step 4: Fallback: Create your provider file
+
+If the provider is NOT OpenAI-compatible (like Anthropic or Gemini), you'll need to implement the trait.
 
 Create a new file: `src-rust/crates/providers/src/providers/your_provider.rs`
 

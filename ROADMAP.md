@@ -18,16 +18,16 @@ We have a working Rust CLI with Anthropic and OpenAI support, experimental speec
 
 | Feature | Status | Issue |
 |---|---|---|
-| Provider trait abstraction | 🔨 In Progress | #1 |
+| Provider trait abstraction | ✅ Done | #1 |
 | Gemini provider | 🔨 In Progress | #2 |
-| Groq provider | 📋 Open | #3 |
-| Ollama (local) provider | 📋 Open | #4 |
-| OpenRouter provider | 📋 Open | #5 |
-| Mistral provider | 📋 Open | #6 |
-| Custom/self-hosted OpenAI-compatible endpoint | 📋 Open | #7 |
-| `/model` command (switch models mid-session) | 📋 Open | #8 |
-| `/providers` command (list all providers) | 📋 Open | #9 |
-| Encrypted config file (API keys stored safely) | 📋 Open | #10 |
+| Groq provider | ✅ Done | #3 |
+| Ollama (local) provider | ✅ Done | #4 |
+| OpenRouter provider | ✅ Done | #5 |
+| Mistral provider | ✅ Done | #6 |
+| Custom/self-hosted OpenAI-compatible endpoint | ✅ Done | #7 |
+| `/model` command (switch models mid-session) | ✅ Done | #8 |
+| `/providers` command (list all providers) | ✅ Done | #9 |
+| Encrypted config file (API keys stored safely) | 🔨 In Progress | #10 |
 
 ---
 
