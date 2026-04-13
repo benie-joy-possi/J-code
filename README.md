@@ -174,6 +174,12 @@ The name says it all: **fast, sharp, cuts through anything.**
 
 ---
 
+## Acknowledgements
+
+JET is a customized fork of **[Claurst](https://github.com/Kuberwastaken/claurst)**. We would like to acknowledge the original Claurst contributors for their work on the clean-room Rust implementation of Claude Code, which served as the foundation for this project.
+
+---
+
 ## License
 
 GPL-3.0 — see [LICENSE.md](./LICENSE.md)
