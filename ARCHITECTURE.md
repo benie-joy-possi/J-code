@@ -174,9 +174,12 @@ API keys are stored in the OS keychain when available (macOS Keychain, Linux lib
 
 ---
 
-## The Messaging Bridge (v0.4)
+## The Messaging Bridge (Proposed)
 
-The messaging bridge (WhatsApp, Telegram, Discord) is a separate optional process that communicates with the JET agent over a local Unix socket. It is NOT part of the core CLI — it's an add-on module.
+> [!NOTE]
+> This section describes the **proposed** architecture for the messaging bridge (v0.4+). This system is not yet implemented.
+
+The messaging bridge (WhatsApp, Telegram, Discord) is planned as a separate optional process that communicates with the JET agent over a local Unix socket. It is NOT part of the core CLI — it's an add-on module.
 
 ```
 ┌──────────────────┐        Unix socket        ┌─────────────────────┐
