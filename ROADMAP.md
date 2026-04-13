@@ -37,8 +37,8 @@ We have a working Rust CLI with Anthropic and OpenAI support, experimental speec
 
 | Feature | Status | Notes |
 |---|---|---|
-| `/cost` command — real-time token usage + cost | 📋 Planned | Per-session and cumulative |
-| Session export (Markdown / GitHub Gist) | 📋 Planned | Share your sessions |
+| `/cost` command — real-time token usage + cost | ✅ Done | Per-session and cumulative |
+| Session export (Markdown / JSON) | ✅ Done | Share your sessions |
 | Multi-agent mode | 📋 Planned | Spin up parallel agents on your machine for complex tasks |
 | Plugin system | 📋 Planned | Community-built tools (web search, git, etc.) |
 | `/benchmark` mode | 📋 Planned | Same prompt → all providers, compare side by side |
@@ -47,21 +47,21 @@ We have a working Rust CLI with Anthropic and OpenAI support, experimental speec
 
 ---
 
-## v0.4 — Messaging Bridge (Optional Module)
+## Proposed Extensions (Future)
 
-**Theme:** Run JET from anywhere — not just your terminal.
+**Theme:** Expand JET's reach beyond the terminal.
 
-This is a **CLI-first** feature. The base agent runs in your terminal. The messaging bridge is an optional module you activate if you want to control JET from your phone.
+These are **high-level proposals** for future development. No work has started on these modules yet.
 
 | Feature | Status | Notes |
 |---|---|---|
-| WhatsApp bridge | 📋 Planned | Send messages, get back status updates |
-| Telegram bridge | 📋 Planned | Bot-style control |
-| Discord bridge | 📋 Planned | For teams using Discord |
-| Async job queue | 📋 Planned | "Start this, ping me when done" |
-| Progress notifications | 📋 Planned | JET messages you when a long task completes |
+| WhatsApp bridge | 📋 Proposed | Control JET via WhatsApp |
+| Telegram bridge | 📋 Proposed | Bot-style control |
+| Discord bridge | 📋 Proposed | For teams using Discord |
+| Async job queue | 📋 Proposed | "Start this, ping me when done" |
+| Progress notifications | 📋 Proposed | Receive pings when long tasks complete |
 
-**How it will work:**
+### Concept: How it would work
 ```
 You (WhatsApp): "Review the PR #142 and fix all lint errors"
 
@@ -69,11 +69,13 @@ JET (WhatsApp): "Starting on PR #142... I'll message you when done."
 
 [20 minutes later]
 
-JET (WhatsApp): "Done ✅
+JET (WhatsApp): "Task Complete
   - Fixed 14 lint errors across 6 files
   - Opened PR #143 with the changes
   - 2 issues need your review (see PR comments)"
 ```
+
+---
 
 ---
 
