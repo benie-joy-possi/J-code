@@ -157,10 +157,9 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) to get started.
 
 | Version | Focus |
 |---|---|
-| **v0.1** | Core CLI, Anthropic + OpenAI stable |
-| **v0.2** | Gemini, Groq, Ollama support |
-| **v0.3** | Multi-agent mode (parallel agents on your machine) |
-| **v0.4** | Messaging bridge (WhatsApp / Telegram / Discord) |
+| **v0.1** | Core CLI, Anthropic + OpenAI stable (Done ✅) |
+| **v0.2** | Multi-provider support, Groq, Ollama (Active 🔨) |
+| **v0.3** | Power features, cost tracking, sessions (Planned 📋) |
 | **v1.0** | Stable, production-ready release |
 
 See [ROADMAP.md](./ROADMAP.md) for details and open tickets.
