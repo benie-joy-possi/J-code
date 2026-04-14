@@ -63,24 +63,24 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            artifact: claurst-windows-x86_64
+            artifact: jet-windows-x86_64
             ext: .exe
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            artifact: claurst-linux-x86_64
+            artifact: jet-linux-x86_64
             ext: ""
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
-            artifact: claurst-linux-aarch64
+            artifact: jet-linux-aarch64
             ext: ""
             cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
-            artifact: claurst-macos-x86_64
+            artifact: jet-macos-x86_64
             ext: ""
           - target: aarch64-apple-darwin
             os: macos-latest
-            artifact: claurst-macos-aarch64
+            artifact: jet-macos-aarch64
             ext: ""
 
     runs-on: ${{ matrix.os }}
@@ -182,11 +182,11 @@ jobs:
       - name: Verify all expected assets exist
         run: |
           EXPECTED=(
-            claurst-windows-x86_64
-            claurst-linux-x86_64
-            claurst-linux-aarch64
-            claurst-macos-x86_64
-            claurst-macos-aarch64
+            jet-windows-x86_64
+            jet-linux-x86_64
+            jet-linux-aarch64
+            jet-macos-x86_64
+            jet-macos-aarch64
           )
           MISSING=()
           for name in "${EXPECTED[@]}"; do
@@ -226,7 +226,7 @@ jobs:
           CURRENT_TAG="${{ inputs.version }}"
           PREVIOUS_TAG="$(git tag --sort=-v:refname | grep -vxF "$CURRENT_TAG" | head -n 1 || true)"
           {
-            echo "# Claurst ${CURRENT_TAG}"
+            echo "# JET ${CURRENT_TAG}"
             echo
             if [[ -n "$PREVIOUS_TAG" ]]; then
               echo "## Changes since ${PREVIOUS_TAG}"
@@ -255,7 +255,7 @@ jobs:
         with:
           tag_name: ${{ inputs.version }}
           target_commitish: ${{ github.sha }}
-          name: Claurst ${{ inputs.version }}
+          name: JET ${{ inputs.version }}
           draft: false
           prerelease: false
           body_path: release-notes.md
