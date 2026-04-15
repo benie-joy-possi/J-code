@@ -256,7 +256,7 @@ fn render_welcome_page(frame: &mut Frame, area: Rect) {
     let lines: Vec<Line<'static>> = vec![
         Line::from(vec![
             Span::styled(
-                " Welcome to Claurst",
+                " Welcome to JET",
                 Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -266,7 +266,7 @@ fn render_welcome_page(frame: &mut Frame, area: Rect) {
         ]),
         Line::from(""),
         Line::from(Span::styled(
-            "  Claurst is an AI-powered coding assistant in your terminal.",
+            "  JET is an AI-powered coding assistant in your terminal.",
             Style::default().fg(text),
         )),
         Line::from(""),
@@ -275,8 +275,8 @@ fn render_welcome_page(frame: &mut Frame, area: Rect) {
             Style::default().fg(pink).add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::styled("  Type your request and press Enter to send it.", Style::default().fg(text))),
-        Line::from(Span::styled("  Claurst can read, edit, and create files in your project.", Style::default().fg(text))),
-        Line::from(Span::styled("  Claurst can run bash commands, search the web, and more.", Style::default().fg(text))),
+        Line::from(Span::styled("  JET can read, edit, and create files in your project.", Style::default().fg(text))),
+        Line::from(Span::styled("  JET can run bash commands, search the web, and more.", Style::default().fg(text))),
         Line::from(""),
         Line::from(Span::styled(
             "  Slash commands:",
@@ -429,7 +429,7 @@ mod tests {
         let content: String = terminal.backend().buffer().clone().content().iter()
             .map(|c| c.symbol().chars().next().unwrap_or(' '))
             .collect();
-        assert!(content.contains("Welcome") || content.contains("Claurst"));
+        assert!(content.contains("Welcome") || content.contains("JET"));
     }
 
     #[test]

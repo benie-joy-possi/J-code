@@ -23,6 +23,7 @@ use crate::bypass_permissions_dialog::render_bypass_permissions_dialog;
 use crate::onboarding_dialog::render_onboarding_dialog;
 use crate::dialog_select::render_dialog_select;
 use crate::key_input_dialog::render_key_input_dialog;
+use crate::custom_provider_dialog::render_custom_provider_dialog;
 use crate::device_auth_dialog::render_device_auth_dialog;
 use crate::elicitation_dialog::render_elicitation_dialog;
 use crate::figures;
@@ -112,6 +113,7 @@ fn is_modal_open(app: &App) -> bool {
         || app.onboarding_dialog.visible
         || app.connect_dialog.visible
         || app.key_input_dialog.visible
+        || app.custom_provider_dialog.visible
         || app.device_auth_dialog.visible
         || app.command_palette.visible
         || app.elicitation.visible
@@ -588,6 +590,11 @@ pub fn render_app(frame: &mut Frame, app: &App) {
     // API key input dialog (opened from /connect for key-based providers)
     if app.key_input_dialog.visible {
         render_key_input_dialog(frame, &app.key_input_dialog, size);
+    }
+
+    // Custom provider URL + API key dialog.
+    if app.custom_provider_dialog.visible {
+        render_custom_provider_dialog(frame, &app.custom_provider_dialog, size);
     }
 
     // Device code / browser auth dialog (GitHub Copilot, Anthropic OAuth)
@@ -1300,7 +1307,7 @@ fn render_welcome_box(frame: &mut Frame, app: &App, area: Rect) {
     if area.height < box_height || box_width < 30 {
         // Too small: fall back to a single line
         let line = Line::from(vec![
-            Span::styled("Claurst ", Style::default().fg(CLAUDE_ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled("JET ", Style::default().fg(CLAUDE_ORANGE).add_modifier(Modifier::BOLD)),
             Span::styled(format!("v{}", APP_VERSION), Style::default().fg(Color::DarkGray)),
         ]);
         frame.render_widget(Paragraph::new(vec![line]), area);
@@ -1308,14 +1315,14 @@ fn render_welcome_box(frame: &mut Frame, app: &App, area: Rect) {
     }
     let box_area = Rect { x: area.x, y: area.y, width: box_width, height: box_height };
 
-    // Outer border with title "Claurst vX.Y"
+    // Outer border with title "JET vX.Y"
     let accent = app.accent_color;
     let outer_block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(accent))
         .title(Line::from(vec![
-            Span::styled(" Claurst ", Style::default().fg(accent).add_modifier(Modifier::BOLD)),
+            Span::styled(" JET ", Style::default().fg(accent).add_modifier(Modifier::BOLD)),
             Span::styled(format!("v{} ", APP_VERSION), Style::default().fg(Color::DarkGray)),
         ]));
     frame.render_widget(outer_block, box_area);
@@ -1399,7 +1406,7 @@ fn render_welcome_box(frame: &mut Frame, app: &App, area: Rect) {
     // --- Right column ---
     let tip_text = claurst_core::tips::select_tip(0)
         .map(|t| t.content.to_string())
-        .unwrap_or_else(|| "Edit AGENTS.md to add instructions for Claurst".to_string());
+        .unwrap_or_else(|| "Edit AGENTS.md to add instructions for JET".to_string());
 
     let mut right_lines: Vec<Line> = Vec::new();
     right_lines.push(Line::from(Span::styled(

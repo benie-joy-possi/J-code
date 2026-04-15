@@ -1,7 +1,7 @@
 // memory_update_notification.rs — MemoryUpdateNotification surface.
 //
 // Mirrors src/components/memory/MemoryUpdateNotification.tsx.
-// Shown briefly in the message area when Claurst updates a memory file
+// Shown briefly in the message area when JET updates a memory file
 // (e.g. ~/.claurst/AGENTS.md or a project-local AGENTS.md).
 //
 // Displays: "Memory updated in {relative_path} · /memory to edit"

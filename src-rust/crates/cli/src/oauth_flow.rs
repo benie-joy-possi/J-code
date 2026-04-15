@@ -1,8 +1,8 @@
 // WARNING: The OAuth client IDs in this module are registered to Anthropic's Claude Code CLI.
-// They will not work for Claurst. This module is preserved for reference but disabled.
+// They will not work for JET. This module is preserved for reference but disabled.
 // Users should authenticate via API key (/connect → Anthropic → paste key).
 //
-// OAuth 2.0 PKCE login flow for the Claurst CLI.
+// OAuth 2.0 PKCE login flow for the JET CLI.
 //
 // Implements the same flow as the TypeScript OAuthService + authLogin():
 // 1. Generate PKCE code_verifier / code_challenge / state

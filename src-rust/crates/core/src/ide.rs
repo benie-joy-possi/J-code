@@ -30,7 +30,7 @@ impl IdeKind {
         }
     }
 
-    /// Install command for the Claurst extension (if known for this IDE).
+    /// Install command for the JET extension (if known for this IDE).
     pub fn extension_install_command(&self) -> Option<String> {
         match self {
             Self::VSCode => Some("code --install-extension claurst.claurst".to_string()),

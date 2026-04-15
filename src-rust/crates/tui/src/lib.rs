@@ -1,4 +1,4 @@
-// claurst-tui: Terminal UI using ratatui + crossterm for Claurst.
+// claurst-tui: Terminal UI using ratatui + crossterm for JET.
 //
 // This crate provides the interactive terminal interface including:
 // - Message display with syntax highlighting
@@ -91,7 +91,7 @@ pub mod voice_mode_notice;
 pub mod message_copy;
 /// Desktop app upsell startup dialog (shown at startup on macOS/Windows x64).
 pub mod desktop_upsell_startup;
-/// Memory update notification banner (shown after Claurst updates a AGENTS.md file).
+/// Memory update notification banner (shown after JET updates a AGENTS.md file).
 pub mod memory_update_notification;
 /// MCP elicitation dialog (form-based user input requested by MCP servers).
 pub mod elicitation_dialog;
@@ -109,6 +109,8 @@ pub mod onboarding_dialog;
 pub mod dialog_select;
 /// Masked text input overlay for entering API keys.
 pub mod key_input_dialog;
+/// Modal dialog for entering custom provider URL + API key.
+pub mod custom_provider_dialog;
 /// Device code / browser-based auth overlay (GitHub Copilot, Anthropic OAuth).
 pub mod device_auth_dialog;
 /// Push-to-talk voice capture and Whisper transcription.
@@ -146,6 +148,7 @@ pub use bypass_permissions_dialog::{BypassPermissionsDialogState, render_bypass_
 pub use onboarding_dialog::{OnboardingDialogState, render_onboarding_dialog};
 pub use dialog_select::{DialogSelectState, SelectItem, render_dialog_select};
 pub use key_input_dialog::{KeyInputDialogState, render_key_input_dialog};
+pub use custom_provider_dialog::{CustomProviderDialogState, CustomProviderField, render_custom_provider_dialog};
 pub use device_auth_dialog::{DeviceAuthDialogState, DeviceAuthStatus, DeviceAuthEvent, render_device_auth_dialog};
 
 // ---------------------------------------------------------------------------
@@ -184,7 +187,7 @@ pub fn setup_terminal() -> io::Result<Terminal<CrosstermBackend<Stdout>>> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    set_terminal_title("\u{1f980} Claurst");
+    set_terminal_title("\u{1f980} JET");
     let backend = CrosstermBackend::new(stdout);
     let terminal = Terminal::new(backend)?;
     Ok(terminal)
@@ -209,11 +212,11 @@ pub fn set_terminal_title(title: &str) {
 }
 
 /// Update the terminal title to reflect the current session context.
-/// Format: "🦀 | <topic>" or just "🦀 Claurst" when no topic is set.
+/// Format: "🦀 | <topic>" or just "🦀 JET" when no topic is set.
 pub fn update_terminal_title(topic: Option<&str>) {
     match topic {
         Some(t) if !t.is_empty() => set_terminal_title(&format!("\u{1f980} | {}", t)),
-        _ => set_terminal_title("\u{1f980} Claurst"),
+        _ => set_terminal_title("\u{1f980} JET"),
     }
 }
 
@@ -577,7 +580,7 @@ mod tests {
             .collect::<Vec<_>>()
             .join("");
 
-        assert!(rendered.contains("Claurst"));
+        assert!(rendered.contains("JET"));
         assert!(rendered.contains("hello"));
     }
 

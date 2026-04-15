@@ -2,7 +2,7 @@
 //
 // Port of src/services/settingsSync/index.ts
 //
-// Syncs user settings and AGENTS.md memory files between a local Claurst
+// Syncs user settings and AGENTS.md memory files between a local JET
 // installation and claude.ai via:
 //   - Upload (interactive CLI, fire-and-forget at startup)
 //   - Download (CCR / CLAURST_REMOTE=1, blocking before plugin load)

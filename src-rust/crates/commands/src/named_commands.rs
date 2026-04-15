@@ -132,7 +132,7 @@ pub struct AddDirCommand;
 
 impl NamedCommand for AddDirCommand {
     fn name(&self) -> &str { "add-dir" }
-    fn description(&self) -> &str { "Add a directory to Claurst's allowed workspace paths" }
+    fn description(&self) -> &str { "Add a directory to JET's allowed workspace paths" }
     fn usage(&self) -> &str { "claude add-dir <path>" }
 
     fn execute_named(&self, args: &[&str], _ctx: &CommandContext) -> CommandResult {
@@ -448,15 +448,15 @@ pub struct PassesCommand;
 
 impl NamedCommand for PassesCommand {
     fn name(&self) -> &str { "passes" }
-    fn description(&self) -> &str { "Share a free week of Claurst with friends" }
+    fn description(&self) -> &str { "Share a free week of JET with friends" }
     fn usage(&self) -> &str { "claude passes" }
 
     fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {
         CommandResult::Message(
-            "Claurst Passes \u{2014} Share Claurst with friends\n\n\
-             Share a free week of Claurst with a friend\n\
+            "JET Passes \u{2014} Share JET with friends\n\n\
+             Share a free week of JET with a friend\n\
              Visit https://claude.ai/passes to get your referral link\n\
-             Each referral gives your friend 1 week of Claurst Pro"
+             Each referral gives your friend 1 week of JET Pro"
                 .to_string(),
         )
     }
@@ -503,7 +503,7 @@ impl NamedCommand for IdeCommand {
             Some(kind) => {
                 let mut lines = vec![format!("Detected IDE: {}", kind.display_name())];
                 if let Some(cmd) = kind.extension_install_command() {
-                    lines.push(format!("To install the Claurst extension: {}", cmd));
+                    lines.push(format!("To install the JET extension: {}", cmd));
                 }
                 lines.join("\n")
             }
@@ -635,7 +635,7 @@ pub struct DesktopCommand;
 
 impl NamedCommand for DesktopCommand {
     fn name(&self) -> &str { "desktop" }
-    fn description(&self) -> &str { "Download and set up Claurst Desktop app" }
+    fn description(&self) -> &str { "Download and set up JET Desktop app" }
     fn usage(&self) -> &str { "claude desktop" }
 
     fn execute_named(&self, _args: &[&str], ctx: &CommandContext) -> CommandResult {
@@ -643,7 +643,7 @@ impl NamedCommand for DesktopCommand {
         let arch = std::env::consts::ARCH;
         let download_url = "https://claude.ai/download";
 
-        // Detect if Claurst Desktop is likely installed (platform-specific heuristic).
+        // Detect if JET Desktop is likely installed (platform-specific heuristic).
         let desktop_likely_installed = match os {
             "macos" => {
                 std::path::Path::new("/Applications/Claude.app").exists()
@@ -669,11 +669,11 @@ impl NamedCommand for DesktopCommand {
             let deep_link = format!("claude://session/{}", session_id);
 
             let mut msg = String::new();
-            msg.push_str("\u{2713} Already connected to Claurst Desktop\n\n");
-            msg.push_str("Your Claurst session is synced with Claurst Desktop.\n\n");
+            msg.push_str("\u{2713} Already connected to JET Desktop\n\n");
+            msg.push_str("Your JET session is synced with JET Desktop.\n\n");
             msg.push_str(&format!("Open this session in Desktop: {deep_link}\n\n"));
             if desktop_likely_installed {
-                msg.push_str("Claurst Desktop is installed on this machine.\n");
+                msg.push_str("JET Desktop is installed on this machine.\n");
                 msg.push_str(&format!("Manage your installation: {download_url}"));
             } else {
                 msg.push_str(&format!("Download / manage Desktop: {download_url}"));
@@ -684,45 +684,45 @@ impl NamedCommand for DesktopCommand {
         let msg = if os == "macos" {
             if desktop_likely_installed {
                 format!(
-                    "Open Claurst Desktop \u{2014} macOS\n\n\
-                     Claurst Desktop appears to be installed.\n\
+                    "Open JET Desktop \u{2014} macOS\n\n\
+                     JET Desktop appears to be installed.\n\
                      Launch it from /Applications/Claude.app and sign in with your Anthropic account.\n\n\
                      Download / update: {download_url}"
                 )
             } else {
                 format!(
-                    "Download Claurst Desktop \u{2014} macOS\n\n\
+                    "Download JET Desktop \u{2014} macOS\n\n\
                      Download: {download_url}\n\n\
                      Setup instructions:\n\
-                     1. Download and install Claurst Desktop for macOS\n\
-                     2. Open Claurst Desktop and sign in with the same Anthropic account\n\
-                     3. Claurst will detect the Desktop bridge automatically"
+                     1. Download and install JET Desktop for macOS\n\
+                     2. Open JET Desktop and sign in with the same Anthropic account\n\
+                     3. JET will detect the Desktop bridge automatically"
                 )
             }
         } else if os == "windows" {
             let arch_note = if arch == "x86_64" { " (x64)" } else { "" };
             if desktop_likely_installed {
                 format!(
-                    "Open Claurst Desktop \u{2014} Windows{arch_note}\n\n\
-                     Claurst Desktop appears to be installed.\n\
+                    "Open JET Desktop \u{2014} Windows{arch_note}\n\n\
+                     JET Desktop appears to be installed.\n\
                      Launch it from your Start menu and sign in with your Anthropic account.\n\n\
                      Download / update: {download_url}"
                 )
             } else {
                 format!(
-                    "Download Claurst Desktop for Windows{arch_note}\n\n\
+                    "Download JET Desktop for Windows{arch_note}\n\n\
                      Download: {download_url}\n\n\
                      Setup instructions:\n\
-                     1. Download and run the Claurst Desktop installer\n\
-                     2. Open Claurst Desktop and sign in with the same Anthropic account\n\
-                     3. Claurst will detect the Desktop bridge automatically"
+                     1. Download and run the JET Desktop installer\n\
+                     2. Open JET Desktop and sign in with the same Anthropic account\n\
+                     3. JET will detect the Desktop bridge automatically"
                 )
             }
         } else {
             // Linux and other platforms
             format!(
-                "Claurst Desktop is not yet available for {os}\n\n\
-                 On Linux, you can use Claurst via the CLI or visit https://claude.ai in your browser.\n\
+                "JET Desktop is not yet available for {os}\n\n\
+                 On Linux, you can use JET via the CLI or visit https://claude.ai in your browser.\n\
                  Check {download_url} for the latest platform availability."
             )
         };
@@ -797,7 +797,7 @@ pub struct MobileCommand;
 
 impl NamedCommand for MobileCommand {
     fn name(&self) -> &str { "mobile" }
-    fn description(&self) -> &str { "Download the Claurst mobile app" }
+    fn description(&self) -> &str { "Download the JET mobile app" }
     fn usage(&self) -> &str { "claude mobile [ios|android]" }
 
     fn execute_named(&self, args: &[&str], ctx: &CommandContext) -> CommandResult {
@@ -832,7 +832,7 @@ impl NamedCommand for MobileCommand {
         let qr_lines = render_qr(qr_url);
 
         let mut out = String::new();
-        out.push_str("Scan to download Claurst mobile app\n");
+        out.push_str("Scan to download JET mobile app\n");
         out.push_str(&format!("Platform: {platform_label}\n\n"));
         if has_session {
             out.push_str("  [1] iOS    [2] Android    [3] Session (QR links to active session)\n\n");
@@ -868,18 +868,31 @@ pub struct InstallGithubAppCommand;
 
 impl NamedCommand for InstallGithubAppCommand {
     fn name(&self) -> &str { "install-github-app" }
-    fn description(&self) -> &str { "Set up Claurst GitHub Actions for a repository" }
+    fn description(&self) -> &str { "Set up JET GitHub Actions for a repository" }
     fn usage(&self) -> &str { "claude install-github-app" }
 
-    fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {
+    fn execute_named(&self, _args: &[&str], ctx: &CommandContext) -> CommandResult {
+        let provider_id = ctx.config.selected_provider_id();
+        let provider_secret_step = claurst_core::config::primary_api_key_env_var_for_provider(provider_id)
+            .map(|provider_secret| {
+                format!(
+                    "3. Add your provider credential to repository secrets (for example {provider_secret})"
+                )
+            })
+            .unwrap_or_else(|| {
+                format!(
+                    "3. Configure any required provider credentials or connectivity for {provider_id} in your workflow environment"
+                )
+            });
+
         CommandResult::Message(
-            "To install the Claurst GitHub App:\n\
+            format!(
+                "To install the JET GitHub App:\n\
              1. Visit https://github.com/apps/claude-code-app and click Install\n\
              2. Select the repositories to enable\n\
-             3. Add your ANTHROPIC_API_KEY to repository secrets\n\n\
-             The app enables Claurst in GitHub Actions workflows.\n\
-             Docs: https://docs.anthropic.com/claude-code/github-actions"
-                .to_string(),
+             {provider_secret_step}\n\n\
+             The app enables JET in GitHub Actions workflows for the configured provider."
+            ),
         )
     }
 }
@@ -892,18 +905,39 @@ pub struct RemoteSetupCommand;
 
 impl NamedCommand for RemoteSetupCommand {
     fn name(&self) -> &str { "remote-setup" }
-    fn description(&self) -> &str { "Check and configure a remote Claurst environment" }
+    fn description(&self) -> &str { "Check and configure a remote JET environment" }
     fn usage(&self) -> &str { "claude remote-setup" }
 
-    fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {
-        let mut steps = Vec::new();
+    fn execute_named(&self, _args: &[&str], ctx: &CommandContext) -> CommandResult {
+        use std::net::ToSocketAddrs;
 
-        // Step 1: Check ANTHROPIC_API_KEY
-        let has_api_key = std::env::var("ANTHROPIC_API_KEY").is_ok();
+        let mut steps = Vec::new();
+        let provider_id = ctx.config.selected_provider_id();
+        let provider_name = provider_id.replace('-', " ");
+        let credential_hint = claurst_core::config::api_key_env_vars_for_provider(provider_id);
+        let credentials_required = !matches!(
+            provider_id,
+            "ollama" | "lmstudio" | "lm-studio" | "llamacpp" | "llama-cpp" | "llama-server"
+        );
+        let credential_help = if credential_hint.is_empty() {
+            format!("configure an API key for {provider_name} in settings")
+        } else {
+            format!("set {} or configure apiKey in settings", credential_hint.join(" / "))
+        };
+
+        // Step 1: Check provider credentials
+        let has_api_key = !credentials_required || ctx.config.resolve_api_key().is_some();
         steps.push(format!(
-            "{} ANTHROPIC_API_KEY {}",
+            "{} {} credentials {}",
             if has_api_key { "\u{2713}" } else { "\u{2717}" },
-            if has_api_key { "is set".to_string() } else { "is NOT set \u{2014} run: export ANTHROPIC_API_KEY=sk-...".to_string() }
+            provider_name,
+            if !credentials_required {
+                "are not required for this provider".to_string()
+            } else if has_api_key {
+                "are configured".to_string()
+            } else {
+                format!("are NOT configured — {credential_help}")
+            }
         ));
 
         // Step 2: Check SSH agent forwarding (check SSH_AUTH_SOCK)
@@ -919,10 +953,10 @@ impl NamedCommand for RemoteSetupCommand {
         ));
 
         // Step 3: Check claude config dir exists
-        let config_dir = dirs::home_dir().map(|h| h.join(".claurst")).unwrap_or_default();
+        let config_dir = claurst_core::config::Settings::config_dir();
         let has_config = config_dir.exists();
         steps.push(format!(
-            "{} Claurst config dir {}",
+            "{} JET config dir {}",
             if has_config { "\u{2713}" } else { "\u{2717}" },
             if has_config {
                 format!("exists at {}", config_dir.display())
@@ -931,18 +965,30 @@ impl NamedCommand for RemoteSetupCommand {
             }
         ));
 
-        // Step 4: Check internet connectivity
-        let net_ok = std::net::TcpStream::connect_timeout(
-            &"api.anthropic.com:443".parse().unwrap_or_else(|_| "8.8.8.8:53".parse().unwrap()),
-            std::time::Duration::from_secs(3),
-        ).is_ok();
+        // Step 4: Check provider endpoint reachability
+        let api_base = ctx.config.resolve_api_base();
+        let (net_ok, net_target) = if let Ok(parsed) = reqwest::Url::parse(&api_base) {
+            if let Some(host) = parsed.host_str() {
+                let port = parsed.port_or_known_default().unwrap_or(443);
+                let target = format!("{host}:{port}");
+                let resolved = (host, port)
+                    .to_socket_addrs()
+                    .map(|mut addrs| addrs.next().is_some())
+                    .unwrap_or(false);
+                (resolved, target)
+            } else {
+                (false, api_base.clone())
+            }
+        } else {
+            (false, api_base.clone())
+        };
         steps.push(format!(
             "{} Network connectivity {}",
             if net_ok { "\u{2713}" } else { "\u{2717}" },
             if net_ok {
-                "to api.anthropic.com".to_string()
+                format!("to {net_target}")
             } else {
-                "FAILED \u{2014} check firewall/proxy".to_string()
+                format!("FAILED \u{2014} check access to {net_target}")
             }
         ));
 
@@ -954,7 +1000,7 @@ impl NamedCommand for RemoteSetupCommand {
              {}",
             steps.join("\n"),
             if all_ok {
-                "\u{2713} All checks passed. Claurst is ready for remote use.\nStart a session: claude --bridge"
+                "\u{2713} All checks passed. JET is ready for remote use.\nStart a session: claude --bridge"
             } else {
                 "\u{2717} Some checks failed. Fix the issues above and run 'claude remote-setup' again."
             }
@@ -970,7 +1016,7 @@ pub struct StickersCommand;
 
 impl NamedCommand for StickersCommand {
     fn name(&self) -> &str { "stickers" }
-    fn description(&self) -> &str { "Open the Claurst sticker page in your browser" }
+    fn description(&self) -> &str { "Open the JET sticker page in your browser" }
     fn usage(&self) -> &str { "claude stickers" }
 
     fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {

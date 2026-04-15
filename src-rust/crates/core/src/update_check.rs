@@ -19,7 +19,7 @@ pub struct UpdateInfo {
     pub has_update: bool,
 }
 
-/// Check for a newer version of Claurst in the background.
+/// Check for a newer version of JET in the background.
 ///
 /// Returns `Some(UpdateInfo)` when a newer release exists on GitHub.
 /// The result is cached for `CHECK_INTERVAL_HOURS` hours so repeated
@@ -64,7 +64,7 @@ pub async fn check_for_updates() -> Option<UpdateInfo> {
     // --- Network fetch -------------------------------------------------------
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
-        .user_agent(format!("Claurst/{}", current))
+        .user_agent(format!("JET/{}", current))
         .build()
         .ok()?;
 

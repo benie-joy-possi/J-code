@@ -77,9 +77,9 @@ pub struct OAuthConfig {
 // ---------------------------------------------------------------------------
 
 // NOTE: These OAuth client IDs are registered to Anthropic's official Claude Code CLI.
-// They will NOT work for Claurst — Anthropic's auth server will reject or misattribute requests.
+// They will NOT work for JET — Anthropic's auth server will reject or misattribute requests.
 // Users should use an API key from console.anthropic.com instead.
-// To use OAuth, Claurst would need its own registered OAuth application with Anthropic.
+// To use OAuth, JET would need its own registered OAuth application with Anthropic.
 pub const PROD_OAUTH: OAuthConfig = OAuthConfig {
     base_api_url: "https://api.anthropic.com",
     // Routes through claude.com/cai/* for attribution, 307s to claude.ai in
@@ -93,7 +93,7 @@ pub const PROD_OAUTH: OAuthConfig = OAuthConfig {
     console_success_url: "https://platform.claude.com/buy_credits?returnUrl=/oauth/code/success%3Fapp%3Dclaude-code",
     claudeai_success_url: "https://platform.claude.com/oauth/code/success?app=claude-code",
     manual_redirect_url: "https://platform.claude.com/oauth/code/callback",
-    client_id: "9d1c250a-e61b-44d9-88ed-5944d1962f5e", // Anthropic's Claude Code — will not work for Claurst
+    client_id: "9d1c250a-e61b-44d9-88ed-5944d1962f5e", // Anthropic's Claude Code — will not work for JET
     oauth_file_suffix: "",
     mcp_proxy_url: "https://mcp-proxy.anthropic.com",
     mcp_proxy_path: "/v1/mcp/{server_id}",
@@ -114,7 +114,7 @@ pub const STAGING_OAUTH: OAuthConfig = OAuthConfig {
     console_success_url: "https://platform.staging.ant.dev/buy_credits?returnUrl=/oauth/code/success%3Fapp%3Dclaude-code",
     claudeai_success_url: "https://platform.staging.ant.dev/oauth/code/success?app=claude-code",
     manual_redirect_url: "https://platform.staging.ant.dev/oauth/code/callback",
-    client_id: "22422756-60c9-4084-8eb7-27705fd5cf9a", // Anthropic's Claude Code staging — will not work for Claurst
+    client_id: "22422756-60c9-4084-8eb7-27705fd5cf9a", // Anthropic's Claude Code staging — will not work for JET
     oauth_file_suffix: "-staging-oauth",
     mcp_proxy_url: "https://mcp-proxy-staging.anthropic.com",
     mcp_proxy_path: "/v1/mcp/{server_id}",

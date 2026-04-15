@@ -7,7 +7,7 @@
 //   Screen 4 ViewHook      — full detail for a single hook
 //
 // The menu is intentionally read-only; as in the TS original, users edit
-// ~/.claurst/settings.json directly or ask Claurst to change hooks.
+// ~/.claurst/settings.json directly or ask JET to change hooks.
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Rect};

@@ -110,7 +110,7 @@ fn default_toggles() -> Vec<PrivacyToggle> {
             key: "usage_sharing",
             label: "Usage Sharing",
             description: "Share aggregate usage patterns (no personal data) to help \
-                          Anthropic understand how Claurst is used.",
+                          Anthropic understand how JET is used.",
             enabled: false,
         },
         PrivacyToggle {

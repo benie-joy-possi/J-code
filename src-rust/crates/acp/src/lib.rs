@@ -1,7 +1,7 @@
-//! Agent Client Protocol (ACP) server for Claurst.
+//! Agent Client Protocol (ACP) server for JET.
 //!
 //! Implements JSON-RPC 2.0 over stdio so that editors (Zed, VS Code, …) can
-//! use Claurst as an AI back-end without launching a full TUI session.
+//! use JET as an AI back-end without launching a full TUI session.
 //!
 //! # Wire format
 //! - Each message is a single UTF-8 line terminated with `\n`.

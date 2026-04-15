@@ -1,4 +1,4 @@
-// claurst-plugins: Plugin runtime for the Claurst CLI.
+// claurst-plugins: Plugin runtime for the JET CLI.
 //
 // This crate handles plugin discovery, manifest parsing, hook registration,
 // and the /plugin + /reload-plugins command definitions.

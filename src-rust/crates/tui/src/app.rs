@@ -6,7 +6,7 @@ use crate::dialog_select::{DialogSelectState, SelectItem};
 use crate::export_dialog::{ExportDialogState, ExportFormat};
 use crate::dialogs::PermissionRequest;
 use crate::diff_viewer::{DiffViewerState, build_turn_diff};
-use crate::model_picker::{EffortLevel, ModelPickerState, is_fast_mode_model};
+use crate::model_picker::{EffortLevel, ModelPickerState};
 use crate::session_browser::SessionBrowserState;
 use crate::tasks_overlay::TasksOverlay;
 use crate::dialogs::McpApprovalDialogState;
@@ -32,7 +32,6 @@ use claurst_core::keybindings::{
 };
 use claurst_core::types::{ContentBlock, Message, Role};
 use claurst_query::QueryEvent;
-use claurst_tools;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use ratatui::backend::CrosstermBackend;
 use ratatui::style::Color;
@@ -57,7 +56,7 @@ const PROMPT_SLASH_COMMANDS: &[(&str, &str)] = &[
     ("diff", "Inspect the current git diff"),
     ("doctor", "Run diagnostics"),
     ("effort", "Set effort level (low/medium/high/max)"),
-    ("exit", "Quit Claurst"),
+    ("exit", "Quit JET"),
     ("export", "Export conversation"),
     ("fast", "Toggle fast mode"),
     ("feedback", "Open session feedback survey"),
@@ -67,10 +66,10 @@ const PROMPT_SLASH_COMMANDS: &[(&str, &str)] = &[
     ("hooks", "Browse configured hooks (read-only)"),
     ("init", "Initialize AGENTS.md for this project"),
     ("insights", "Generate a session analysis report with conversation statistics"),
-    ("install-slack-app", "Install the Claurst Slack integration"),
+    ("install-slack-app", "Install the JET Slack integration"),
     ("keybindings", "Show keybinding configuration"),
-    ("login", "Log in to Claurst"),
-    ("logout", "Log out of Claurst"),
+    ("login", "Log in to JET"),
+    ("logout", "Log out of JET"),
     ("mcp", "Browse configured MCP servers"),
     ("memory", "Browse and open AGENTS.md memory files"),
     ("model", "Change the AI model"),
@@ -81,7 +80,7 @@ const PROMPT_SLASH_COMMANDS: &[(&str, &str)] = &[
     ("caveman", "Caveman speech mode — save big token"),
     ("rocky", "Rocky speech mode — amaze amaze amaze"),
     ("normal", "Deactivate speech mode"),
-    ("quit", "Quit Claurst"),
+    ("quit", "Quit JET"),
     ("refresh", "Clear saved provider auth and model caches"),
     ("rename", "Rename this session"),
     ("resume", "Resume a previous session"),
@@ -161,9 +160,11 @@ fn get_env_var_for_provider(id: &str) -> &'static str {
         "venice" => "VENICE_API_KEY",
         "moonshotai" => "MOONSHOT_API_KEY",
         "zhipuai" => "ZHIPU_API_KEY",
+        "zai" => "ZAI_API_KEY",
         "siliconflow" => "SILICONFLOW_API_KEY",
         "nebius" => "NEBIUS_API_KEY",
         "novita" => "NOVITA_API_KEY",
+        "minimax" => "MINIMAX_API_KEY",
         "ovhcloud" => "OVHCLOUD_API_KEY",
         "scaleway" => "SCALEWAY_API_KEY",
         "vultr" => "VULTR_API_KEY",
@@ -197,9 +198,11 @@ fn get_url_for_provider(id: &str) -> &'static str {
         "deepinfra" => "deepinfra.com/dash/api_keys",
         "azure" => "portal.azure.com",
         "amazon-bedrock" => "console.aws.amazon.com/bedrock",
+        "minimax" => "platform.minimaxi.com",
         "huggingface" => "huggingface.co/settings/tokens",
         "nvidia" => "build.nvidia.com",
         "venice" => "venice.ai/settings/api",
+        "zai" => "z.ai/manage-apikey/apikey-list",
         _ => "the provider's website",
     }
 }
@@ -211,10 +214,12 @@ fn provider_picker_items() -> Vec<SelectItem> {
         SelectItem { id: "github-copilot".into(), title: "GitHub Copilot".into(), description: "(GitHub subscription or token)".into(), category: "Popular".into(), badge: None },
         SelectItem { id: "google".into(), title: "Google".into(), description: "(API key)".into(), category: "Popular".into(), badge: None },
         SelectItem { id: "anthropic".into(), title: "Anthropic".into(), description: "(API key)".into(), category: "Popular".into(), badge: None },
+        SelectItem { id: "custom-openai".into(), title: "Custom OpenAI-Compatible".into(), description: "Custom URL + API key".into(), category: "Advanced".into(), badge: None },
         SelectItem { id: "openrouter".into(), title: "OpenRouter".into(), description: "100+ models with one key".into(), category: "Popular".into(), badge: None },
         SelectItem { id: "vercel".into(), title: "Vercel AI Gateway".into(), description: "Gateway for AI SDK models".into(), category: "Popular".into(), badge: None },
         SelectItem { id: "groq".into(), title: "Groq".into(), description: "Fast hosted inference".into(), category: "Popular".into(), badge: Some("FREE".into()) },
         SelectItem { id: "ollama".into(), title: "Ollama".into(), description: "Run models locally".into(), category: "Popular".into(), badge: Some("LOCAL".into()) },
+        SelectItem { id: "zai".into(), title: "Z.AI".into(), description: "GLM-5.1 / GLM-5 / GLM-4.7 Coding Plan".into(), category: "Popular".into(), badge: None },
         SelectItem { id: "cerebras".into(), title: "Cerebras".into(), description: "Fast hosted inference".into(), category: "Other".into(), badge: Some("FREE".into()) },
         SelectItem { id: "sambanova".into(), title: "SambaNova".into(), description: "Fast hosted inference".into(), category: "Other".into(), badge: Some("FREE".into()) },
         SelectItem { id: "lmstudio".into(), title: "LM Studio".into(), description: "Local model server".into(), category: "Other".into(), badge: Some("LOCAL".into()) },
@@ -243,6 +248,7 @@ fn provider_picker_items() -> Vec<SelectItem> {
         SelectItem { id: "siliconflow".into(), title: "SiliconFlow".into(), description: "Hosted open models".into(), category: "Other".into(), badge: None },
         SelectItem { id: "nebius".into(), title: "Nebius".into(), description: "Cloud inference".into(), category: "Other".into(), badge: None },
         SelectItem { id: "novita".into(), title: "Novita".into(), description: "Cloud inference".into(), category: "Other".into(), badge: None },
+        SelectItem { id: "minimax".into(), title: "MiniMax".into(), description: "Anthropic-compatible (M2.7)".into(), category: "Other".into(), badge: None },
         SelectItem { id: "ovhcloud".into(), title: "OVHcloud".into(), description: "EU-hosted AI".into(), category: "Other".into(), badge: None },
         SelectItem { id: "scaleway".into(), title: "Scaleway".into(), description: "EU cloud AI".into(), category: "Other".into(), badge: None },
         SelectItem { id: "vultr".into(), title: "Vultr".into(), description: "Cloud inference".into(), category: "Other".into(), badge: None },
@@ -473,11 +479,11 @@ pub fn try_copy_to_clipboard(text: &str) -> bool {
             return child.wait().map(|s| s.success()).unwrap_or(false);
         }
     }
-    // Linux / X11
+    // Linux / Wayland / X11
     #[cfg(target_os = "linux")]
     {
         use std::io::Write;
-        for cmd in &["xclip -selection clipboard", "xsel --clipboard --input"] {
+        for cmd in &["wl-copy", "xclip -selection clipboard", "xsel --clipboard --input"] {
             let parts: Vec<&str> = cmd.split_whitespace().collect();
             if let Some((prog, args)) = parts.split_first() {
                 if let Ok(mut child) = std::process::Command::new(prog)
@@ -795,6 +801,8 @@ pub struct App {
     pub onboarding_dialog: crate::onboarding_dialog::OnboardingDialogState,
     /// API key input dialog (opened from /connect for key-based providers).
     pub key_input_dialog: crate::key_input_dialog::KeyInputDialogState,
+    /// Custom provider dialog for URL + API key input.
+    pub custom_provider_dialog: crate::custom_provider_dialog::CustomProviderDialogState,
     /// Device code / browser auth dialog (GitHub Copilot device flow, Anthropic OAuth).
     pub device_auth_dialog: crate::device_auth_dialog::DeviceAuthDialogState,
     /// When set, the main loop should spawn the async auth task for this provider.
@@ -819,7 +827,7 @@ pub struct App {
     pub connect_dialog: DialogSelectState,
     /// Ctrl+K command palette overlay.
     pub command_palette: DialogSelectState,
-    /// Whether Claurst was launched from the user's home directory.
+    /// Whether JET was launched from the user's home directory.
     /// Shown as a startup notice: "Note: You have launched claude in your home directory…"
     pub home_dir_warning: bool,
     /// Output style: "auto" | "stream" | "verbose".
@@ -929,6 +937,10 @@ pub struct App {
     /// If a newer version was found during background update check, this holds
     /// the latest version string (e.g. "0.1.0"). Shown in the footer status bar.
     pub update_available: Option<String>,
+    /// Cost breakdown for managed agent sessions: (manager_usd, executors_usd, total_usd).
+    pub managed_agent_cost_breakdown: Option<(f64, f64, f64)>,
+    /// Whether managed agent mode is currently active.
+    pub managed_agents_active: bool,
 }
 
 const SPINNER_VERBS: &[&str] = &[
@@ -1194,6 +1206,7 @@ impl App {
             bypass_permissions_dialog: crate::bypass_permissions_dialog::BypassPermissionsDialogState::new(),
             onboarding_dialog: crate::onboarding_dialog::OnboardingDialogState::new(),
             key_input_dialog: crate::key_input_dialog::KeyInputDialogState::new(),
+            custom_provider_dialog: crate::custom_provider_dialog::CustomProviderDialogState::new(),
             device_auth_dialog: crate::device_auth_dialog::DeviceAuthDialogState::new(),
             device_auth_pending: None,
             provider_registry: None,
@@ -1292,6 +1305,8 @@ impl App {
             scroll_last_time: None,
             bash_prefix_allowlist: std::collections::HashSet::new(),
             update_available: None,
+            managed_agent_cost_breakdown: None,
+            managed_agents_active: false,
         }
     }
 
@@ -1337,6 +1352,12 @@ impl App {
             duration: None,
             interrupted: false,
         });
+        // Start the latency timer now — at prompt-submission time — so it
+        // measures actual round-trip time even when the provider buffers its
+        // full response before yielding any stream events (e.g. Gemini flash).
+        self.turn_start = Some(std::time::Instant::now());
+        self.last_turn_elapsed = None;
+        self.last_turn_verb = None;
     }
 
     fn sync_turn_metadata_to_messages(&mut self) {
@@ -1472,6 +1493,14 @@ impl App {
         self.open_model_picker_for_provider(&provider_id, Some(picker_title));
     }
 
+    fn persist_custom_provider_base_url(&self, base_url: &str) {
+        let mut settings = Settings::load_sync().unwrap_or_default();
+        let entry = settings.providers.entry("custom-openai".to_string()).or_default();
+        entry.api_base = Some(base_url.to_string());
+        entry.enabled = true;
+        let _ = settings.save_sync();
+    }
+
     fn persist_provider_and_model(&self) {
         let mut settings = Settings::load_sync().unwrap_or_default();
         settings.provider = self.config.provider.clone();
@@ -1493,12 +1522,14 @@ impl App {
                 "xai",
                 "openrouter",
                 "github-copilot",
+                "codex",
                 "cohere",
                 "perplexity",
                 "togetherai",
                 "together-ai",
                 "deepinfra",
                 "venice",
+                "minimax",
                 "ollama",
                 "lmstudio",
                 "llamacpp",
@@ -1708,6 +1739,7 @@ impl App {
         self.connect_dialog = DialogSelectState::new("Connect a provider", provider_picker_items());
         self.model_picker = ModelPickerState::new();
         self.key_input_dialog = crate::key_input_dialog::KeyInputDialogState::new();
+        self.custom_provider_dialog = crate::custom_provider_dialog::CustomProviderDialogState::new();
         self.device_auth_dialog = crate::device_auth_dialog::DeviceAuthDialogState::new();
         self.device_auth_pending = None;
         self.model_picker_fetch_pending = false;
@@ -1845,11 +1877,11 @@ impl App {
                     PermissionMode::Default
                 };
                 self.status_message = Some(if self.plan_mode {
-                    "Plan mode ON — Claurst will plan before acting.".to_string()
+                    "Plan mode ON — JET will plan before acting.".to_string()
                 } else {
                     "Plan mode OFF.".to_string()
                 });
-                // Allow CLI path to also run (sends UserMessage to Claurst).
+                // Allow CLI path to also run (sends UserMessage to JET).
                 false
             }
             "compact" => {
@@ -1993,6 +2025,7 @@ impl App {
         self.connect_dialog.close();
         self.command_palette.close();
         self.key_input_dialog.close();
+        self.custom_provider_dialog.close();
         self.device_auth_dialog.close();
         self.settings_screen.close();
         self.theme_screen.close();
@@ -2180,6 +2213,9 @@ impl App {
                 turns_completed: 0,
                 is_coordinator: false,
                 last_output: Some(status.clone()),
+                agent_role: crate::agents_view::AgentRole::Normal,
+                model_name: None,
+                cost_usd: 0.0,
             })
             .collect();
     }
@@ -2680,6 +2716,44 @@ impl App {
             return false;
         }
 
+        // Custom provider dialog (URL + API key for OpenAI-compatible providers)
+        if self.custom_provider_dialog.visible {
+            match key.code {
+                KeyCode::Esc => {
+                    self.custom_provider_dialog.close();
+                }
+                KeyCode::Tab | KeyCode::Down => {
+                    self.custom_provider_dialog.move_next_field();
+                }
+                KeyCode::Up => {
+                    self.custom_provider_dialog.move_prev_field();
+                }
+                KeyCode::Enter => {
+                    if self.custom_provider_dialog.can_submit() {
+                        let provider_id = self.custom_provider_dialog.provider_id.clone();
+                        let provider_name = self.custom_provider_dialog.provider_name.clone();
+                        let (base_url, api_key) = self.custom_provider_dialog.take_values();
+                        self.persist_custom_provider_base_url(&base_url);
+                        self.auth_store.set(
+                            &provider_id,
+                            claurst_core::StoredCredential::ApiKey { key: api_key },
+                        );
+                        self.activate_provider(provider_id, provider_name, "Connected to");
+                    } else {
+                        self.custom_provider_dialog.move_next_field();
+                    }
+                }
+                KeyCode::Backspace => {
+                    self.custom_provider_dialog.backspace();
+                }
+                KeyCode::Char(c) => {
+                    self.custom_provider_dialog.insert_char(c);
+                }
+                _ => {}
+            }
+            return false;
+        }
+
         // Connect-a-provider dialog (/connect command)
         if self.connect_dialog.visible {
             match key.code {
@@ -2703,15 +2777,22 @@ impl App {
                             }
                             "anthropic" => {
                                 // Anthropic: use API key from console.anthropic.com
-                                // (OAuth requires a registered app which Claurst doesn't have)
+                                // (OAuth requires a registered app which JET doesn't have)
                                 self.key_input_dialog.open(selected.id.clone(), selected.title.clone());
+                            }
+                            "custom-openai" => {
+                                let current_url = Settings::load_sync()
+                                    .ok()
+                                    .and_then(|settings| settings.providers.get("custom-openai").and_then(|p| p.api_base.clone()));
+                                self.custom_provider_dialog
+                                    .open(selected.id.clone(), selected.title.clone(), current_url);
                             }
                             "github-copilot" => {
                                 // GitHub Copilot: device code flow
                                 self.device_auth_dialog.open(selected.id.clone(), selected.title.clone());
                                 self.device_auth_pending = Some("github-copilot".to_string());
                             }
-                            "openai-codex" => {
+                            "codex" | "openai-codex" => {
                                 // OpenAI Codex: browser OAuth flow (spawned by main loop)
                                 self.device_auth_dialog.open("openai-codex".into(), "OpenAI Codex".into());
                                 self.device_auth_pending = Some("openai-codex".to_string());
@@ -2790,7 +2871,7 @@ impl App {
                     if let Some((model_id, effort)) = self.model_picker.confirm() {
                         // If user picked a model other than the fast-mode model
                         // while fast mode was active, turn fast mode off.
-                        if self.fast_mode && !is_fast_mode_model(&model_id) {
+                        if self.fast_mode && !self.model_picker.is_selected_fast_mode_model(&model_id) {
                             self.fast_mode = false;
                         }
                         if let Some(e) = effort {
@@ -3303,7 +3384,7 @@ impl App {
                     | crate::prompt_input::VimMode::VisualBlock
             )
         {
-            use crate::image_paste::{read_clipboard_image, read_clipboard_text};
+            use crate::image_paste::{read_clipboard_image, read_clipboard_text, read_primary_text};
             if let Some(img) = read_clipboard_image() {
                 let label = img.label.clone();
                 let dims = img.dimensions;
@@ -3314,9 +3395,16 @@ impl App {
                     format!("Image attached: {}", label)
                 };
                 self.notifications.push(NotificationKind::Info, msg, Some(3));
-            } else if let Some(text) = read_clipboard_text() {
+            } else if let Some(text) = read_clipboard_text().or_else(read_primary_text) {
                 self.prompt_input.paste(&text);
+                self.refresh_prompt_input();
             }
+            return false;
+        }
+
+        // ---- Shift+Insert — selection/clipboard paste fallback -------------
+        if key.code == KeyCode::Insert && key.modifiers.contains(KeyModifiers::SHIFT) {
+            let _ = self.paste_primary_into_prompt();
             return false;
         }
 
@@ -4533,6 +4621,37 @@ impl App {
         }
     }
 
+    fn prompt_can_accept_selection_paste(&self) -> bool {
+        !self.is_streaming
+            && self.permission_request.is_none()
+            && !self.history_search_overlay.visible
+            && self.history_search.is_none()
+            && !matches!(
+                self.prompt_input.vim_mode,
+                crate::prompt_input::VimMode::Normal
+                    | crate::prompt_input::VimMode::Visual
+                    | crate::prompt_input::VimMode::VisualBlock
+            )
+    }
+
+    fn paste_primary_into_prompt(&mut self) -> bool {
+        if !self.prompt_can_accept_selection_paste() {
+            return false;
+        }
+
+        if let Some(text) = crate::image_paste::read_primary_text()
+            .or_else(crate::image_paste::read_clipboard_text)
+        {
+            self.focus = FocusTarget::Input;
+            self.clear_selection();
+            self.prompt_input.paste(&text);
+            self.refresh_prompt_input();
+            return true;
+        }
+
+        false
+    }
+
     /// Process mouse events (trackpad scroll, text selection, etc.).
     pub fn handle_mouse_event(&mut self, mouse_event: MouseEvent) {
         use crossterm::event::MouseButton;
@@ -4671,6 +4790,11 @@ impl App {
                 } else {
                     self.dismiss_context_menu();
                 }
+            }
+
+            // ---- Primary-selection paste into the prompt ---------------
+            MouseEventKind::Down(MouseButton::Middle) => {
+                let _ = self.paste_primary_into_prompt();
             }
 
             // ---- Text selection / focus routing -------------------------
@@ -4821,15 +4945,12 @@ impl App {
                 if !self.is_streaming {
                     let seed = self.frame_count as usize ^ (self.messages.len() * 17);
                     self.spinner_verb = Some(sample_spinner_verb(seed).to_string());
-                    // Only set turn_start on the FIRST streaming event of a
-                    // turn.  MessageStop resets is_streaming between tool-use
-                    // cycles, but we must not reset the timer — the total turn
-                    // duration should cover the entire request, including all
-                    // tool-use rounds.
+                    // turn_start is set in begin_user_turn_snapshot (prompt
+                    // submission time).  Only fall back here if somehow no
+                    // user message was pushed before streaming began (e.g.
+                    // headless / programmatic callers).
                     if self.turn_start.is_none() {
                         self.turn_start = Some(std::time::Instant::now());
-                        self.last_turn_elapsed = None;
-                        self.last_turn_verb = None;
                     }
                     self.streaming_thinking.clear();
                 }
@@ -5016,82 +5137,6 @@ impl App {
         loop {
             self.frame_count = self.frame_count.wrapping_add(1);
 
-            // Sync cost/token counters from the shared tracker
-            self.cost_usd = self.cost_tracker.total_cost_usd();
-            self.token_count = self.cost_tracker.total_tokens() as u32;
-
-            // Expire old notifications
-            self.notifications.tick();
-            self.memory_update_notification.tick();
-
-            // Drain background model-fetch results (non-blocking).
-            if let Some(ref mut rx) = self.model_fetch_rx {
-                match rx.try_recv() {
-                    Ok(Ok(entries)) => {
-                        let provider = self
-                            .config
-                            .provider
-                            .clone()
-                            .unwrap_or_else(|| "anthropic".to_string());
-                        let provider_prefix = format!("{}/", provider);
-                        let current = self
-                            .model_name
-                            .strip_prefix(&provider_prefix)
-                            .unwrap_or(self.model_name.as_str())
-                            .to_string();
-                        self.model_picker.set_models(entries);
-                        // Re-apply the current-model highlight so it stays accurate.
-                        for m in &mut self.model_picker.models {
-                            m.is_current = m.id == current;
-                        }
-                        self.model_fetch_rx = None;
-                    }
-                    Ok(Err(()))
-                    | Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
-                        self.model_picker.loading_models = false;
-                        self.model_fetch_rx = None;
-                    }
-                    Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
-                }
-            }
-
-            // Spawn async provider model-list fetch when requested.
-            if self.model_picker_fetch_pending {
-                self.model_picker_fetch_pending = false;
-                let provider_id_str = self.config.provider.clone().unwrap_or_else(|| "anthropic".to_string());
-                if let Some(ref registry) = self.provider_registry {
-                    let pid = claurst_core::ProviderId::new(&provider_id_str);
-                    if let Some(provider) = registry.get(&pid) {
-                        let provider = provider.clone();
-                        let (tx, rx) = tokio::sync::mpsc::channel(1);
-                        self.model_fetch_rx = Some(rx);
-                        self.model_picker.loading_models = true;
-                        tokio::spawn(async move {
-                            match provider.list_models().await {
-                                Ok(models) => {
-                                    let entries: Vec<crate::model_picker::ModelEntry> = models
-                                        .into_iter()
-                                        .map(|m| {
-                                            let ctx_k = m.context_window / 1000;
-                                            crate::model_picker::ModelEntry {
-                                                id: m.id.to_string(),
-                                                display_name: m.name.clone(),
-                                                description: format!("{}K context", ctx_k),
-                                                is_current: false,
-                                            }
-                                        })
-                                        .collect();
-                                    let _ = tx.send(Ok(entries)).await;
-                                }
-                                Err(_) => {
-                                    let _ = tx.send(Err(())).await;
-                                }
-                            }
-                        });
-                    }
-                }
-            }
-
             // Drain background session-list results.
             if let Some(ref mut rx) = self.session_list_rx {
                 match rx.try_recv() {
@@ -5194,11 +5239,6 @@ impl App {
                         }
                     }
                 }
-            }
-
-            // Refresh task list if the overlay is visible (every frame for live updates)
-            if self.tasks_overlay.visible {
-                self.tasks_overlay.refresh_tasks(&claurst_tools::TASK_STORE);
             }
 
             // Draw the frame

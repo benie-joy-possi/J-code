@@ -1,4 +1,4 @@
-// claurst-api: Anthropic API client with streaming SSE support for Claurst
+// claurst-api: Anthropic API client with streaming SSE support for JET
 // Rust port.
 //
 // Handles:
@@ -74,6 +74,7 @@ pub use registry::ProviderRegistry;
 // Phase 1D re-exports — concrete provider adapters.
 pub use providers::AnthropicProvider;
 pub use providers::GoogleProvider;
+pub use providers::MinimaxProvider;
 pub use providers::OpenAiProvider;
 
 // Phase 3 re-exports — model registry.

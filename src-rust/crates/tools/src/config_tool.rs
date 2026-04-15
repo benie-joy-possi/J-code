@@ -1,4 +1,4 @@
-// ConfigTool: get or set Claurst configuration settings at runtime.
+// ConfigTool: get or set JET configuration settings at runtime.
 //
 // Reads from and persists to ~/.claurst/settings.json.
 // Supported settings: model, max_tokens, verbose, permission_mode.
@@ -29,7 +29,7 @@ impl Tool for ConfigTool {
     fn name(&self) -> &str { "Config" }
 
     fn description(&self) -> &str {
-        "Get or set Claurst configuration settings. Omit 'value' to read the current value. \
+        "Get or set JET configuration settings. Omit 'value' to read the current value. \
          Supported settings: model, max_tokens, verbose, permission_mode, auto_compact. \
          Changes persist to ~/.claurst/settings.json."
     }
