@@ -1,7 +1,7 @@
-//! Agent Client Protocol (ACP) server for Claurst.
+//! Agent Client Protocol (ACP) server for jet.
 //!
 //! Implements JSON-RPC 2.0 over stdio so that editors (Zed, VS Code, …) can
-//! use Claurst as an AI back-end without launching a full TUI session.
+//! use jet as an AI back-end without launching a full TUI session.
 //!
 //! # Wire format
 //! - Each message is a single UTF-8 line terminated with `\n`.
@@ -87,7 +87,7 @@ pub async fn run_acp_server() -> anyhow::Result<()> {
 
     // Send the server/ready notification before the first request.
     let capabilities = serde_json::json!({
-        "name": "claurst",
+        "name": "jet",
         "version": env!("CARGO_PKG_VERSION"),
         "capabilities": {
             "sessions": true,
@@ -147,7 +147,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
             id,
             serde_json::json!({
                 "serverInfo": {
-                    "name": "claurst",
+                    "name": "jet",
                     "version": env!("CARGO_PKG_VERSION")
                 },
                 "capabilities": {
@@ -210,7 +210,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
 
         // ------------------------------------------------------------------
         "model/list" => {
-            let registry = claurst_api::ModelRegistry::new();
+            let registry = jet_api::ModelRegistry::new();
             let mut entries = registry.list_all();
             entries.sort_by(|a, b| {
                 (&*a.info.provider_id)
@@ -243,8 +243,8 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
 /// Try to open the default SQLite store and return a JSON array of sessions.
 /// On any error returns an empty array (ACP server must stay robust).
 fn try_list_sessions() -> serde_json::Value {
-    let db_path = claurst_core::config::Settings::config_dir().join("sessions.db");
-    match claurst_core::SqliteSessionStore::open(&db_path) {
+    let db_path = jet_core::config::Settings::config_dir().join("sessions.db");
+    match jet_core::SqliteSessionStore::open(&db_path) {
         Ok(store) => match store.list_sessions() {
             Ok(sessions) => {
                 let arr: Vec<_> = sessions

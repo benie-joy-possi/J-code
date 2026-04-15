@@ -1,13 +1,13 @@
 [package]
-name = "claurst-query"
+name = "jet-query"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-claurst-core = { workspace = true }
-claurst-api = { workspace = true }
-claurst-plugins = { workspace = true }
-claurst-tools = { workspace = true }
+jet-core = { workspace = true }
+jet-api = { workspace = true }
+jet-plugins = { workspace = true }
+jet-tools = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 futures = { workspace = true }

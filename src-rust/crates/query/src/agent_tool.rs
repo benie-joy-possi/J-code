@@ -16,10 +16,10 @@
 //     Use poll_background_agent() to check completion status.
 
 use async_trait::async_trait;
-use claurst_api::client::ClientConfig;
-use claurst_api::AnthropicClient;
-use claurst_core::types::Message;
-use claurst_tools::{PermissionLevel, Tool, ToolContext, ToolResult};
+use jet_api::client::ClientConfig;
+use jet_api::AnthropicClient;
+use jet_core::types::Message;
+use jet_tools::{PermissionLevel, Tool, ToolContext, ToolResult};
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
@@ -157,7 +157,7 @@ struct AgentInput {
 #[async_trait]
 impl Tool for AgentTool {
     fn name(&self) -> &str {
-        claurst_core::constants::TOOL_NAME_AGENT
+        jet_core::constants::TOOL_NAME_AGENT
     }
 
     fn description(&self) -> &str {
@@ -250,14 +250,14 @@ impl Tool for AgentTool {
 
         // Build the tool list for the sub-agent.
         // Always exclude AgentTool itself to prevent unbounded recursion.
-        let all = claurst_tools::all_tools();
+        let all = jet_tools::all_tools();
         let agent_tools: Vec<Box<dyn Tool>> = if let Some(ref allowed) = params.tools {
             all.into_iter()
                 .filter(|t| allowed.contains(&t.name().to_string()))
                 .collect()
         } else {
             all.into_iter()
-                .filter(|t| t.name() != claurst_core::constants::TOOL_NAME_AGENT)
+                .filter(|t| t.name() != jet_core::constants::TOOL_NAME_AGENT)
                 .collect()
         };
 
@@ -271,7 +271,7 @@ impl Tool for AgentTool {
                     .map(|c| c.executor_model.clone())
                     .filter(|m| !m.is_empty())
             })
-            .unwrap_or_else(|| claurst_core::constants::DEFAULT_MODEL.to_string());
+            .unwrap_or_else(|| jet_core::constants::DEFAULT_MODEL.to_string());
 
         let system_prompt = params.system_prompt.unwrap_or_else(|| {
             let mut prompt = "You are a specialized AI agent helping with a specific sub-task. \
@@ -280,7 +280,7 @@ impl Tool for AgentTool {
 
             // Append plugin-contributed agent definitions so the sub-agent
             // is aware of any specialised agents declared by plugins.
-            if let Some(registry) = claurst_plugins::global_plugin_registry() {
+            if let Some(registry) = jet_plugins::global_plugin_registry() {
                 let mut agent_defs = String::new();
                 for agent_dir in registry.all_agent_paths() {
                     if let Ok(entries) = std::fs::read_dir(&agent_dir) {
@@ -364,7 +364,7 @@ impl Tool for AgentTool {
 
         let query_config = QueryConfig {
             model,
-            max_tokens: claurst_core::constants::DEFAULT_MAX_TOKENS,
+            max_tokens: jet_core::constants::DEFAULT_MAX_TOKENS,
             max_turns: resolved_max_turns,
             system_prompt: Some(system_prompt),
             append_system_prompt: None,
@@ -393,9 +393,9 @@ impl Tool for AgentTool {
             BACKGROUND_AGENTS.insert(agent_id.clone(), rx);
 
             // Re-create the tool list inside the closure so it is owned and Send.
-            let agent_tools_bg: Vec<Box<dyn Tool>> = claurst_tools::all_tools()
+            let agent_tools_bg: Vec<Box<dyn Tool>> = jet_tools::all_tools()
                 .into_iter()
-                .filter(|t| t.name() != claurst_core::constants::TOOL_NAME_AGENT)
+                .filter(|t| t.name() != jet_core::constants::TOOL_NAME_AGENT)
                 .collect();
 
             let client_bg = client.clone();
@@ -543,13 +543,13 @@ fn format_outcome(outcome: QueryOutcome) -> String {
 /// # Panics
 /// Panics if the runner was already registered.
 pub fn init_team_swarm_runner() {
-    let runner: claurst_tools::AgentRunFn = Arc::new(
+    let runner: jet_tools::AgentRunFn = Arc::new(
         |description: String,
          prompt: String,
          tools: Option<Vec<String>>,
          system: Option<String>,
          max_turns: Option<u32>,
-         ctx: Arc<claurst_tools::ToolContext>| {
+         ctx: Arc<jet_tools::ToolContext>| {
             // We must return a Pin<Box<dyn Future<...> + Send>>.
             Box::pin(async move {
                 // Resolve API key.
@@ -567,7 +567,7 @@ pub fn init_team_swarm_runner() {
                 };
 
                 let client =
-                    match claurst_api::AnthropicClient::new(claurst_api::client::ClientConfig {
+                    match jet_api::AnthropicClient::new(jet_api::client::ClientConfig {
                         api_key,
                         ..Default::default()
                     }) {
@@ -581,19 +581,19 @@ pub fn init_team_swarm_runner() {
                     };
 
                 // Build the tool list, filtering to the allowlist if provided.
-                let all = claurst_tools::all_tools();
-                let agent_tools: Vec<Box<dyn claurst_tools::Tool>> =
+                let all = jet_tools::all_tools();
+                let agent_tools: Vec<Box<dyn jet_tools::Tool>> =
                     if let Some(ref allowed) = tools {
                         all.into_iter()
                             .filter(|t| allowed.contains(&t.name().to_string()))
                             .collect()
                     } else {
                         all.into_iter()
-                            .filter(|t| t.name() != claurst_core::constants::TOOL_NAME_AGENT)
+                            .filter(|t| t.name() != jet_core::constants::TOOL_NAME_AGENT)
                             .collect()
                     };
 
-                let model = claurst_core::constants::DEFAULT_MODEL.to_string();
+                let model = jet_core::constants::DEFAULT_MODEL.to_string();
 
                 let system_prompt = system.unwrap_or_else(|| {
                     "You are a specialized AI agent helping with a specific sub-task. \
@@ -603,7 +603,7 @@ pub fn init_team_swarm_runner() {
 
                 let query_config = crate::QueryConfig {
                     model,
-                    max_tokens: claurst_core::constants::DEFAULT_MAX_TOKENS,
+                    max_tokens: jet_core::constants::DEFAULT_MAX_TOKENS,
                     max_turns: max_turns.unwrap_or(10),
                     system_prompt: Some(system_prompt),
                     working_directory: Some(ctx.working_dir.display().to_string()),
@@ -613,7 +613,7 @@ pub fn init_team_swarm_runner() {
                 };
 
                 let cancel = tokio_util::sync::CancellationToken::new();
-                let mut messages = vec![claurst_core::types::Message::user(prompt)];
+                let mut messages = vec![jet_core::types::Message::user(prompt)];
                 let outcome = crate::run_query_loop(
                     client.as_ref(),
                     &mut messages,
@@ -632,5 +632,5 @@ pub fn init_team_swarm_runner() {
         },
     );
 
-    claurst_tools::register_agent_runner(runner);
+    jet_tools::register_agent_runner(runner);
 }

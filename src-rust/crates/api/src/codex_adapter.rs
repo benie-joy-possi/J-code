@@ -5,7 +5,7 @@
 //! are translated back to Anthropic's CreateMessageResponse format.
 
 use super::types::{CreateMessageRequest, CreateMessageResponse, SystemPrompt};
-use claurst_core::types::UsageInfo;
+use jet_core::types::UsageInfo;
 use serde_json::{json, Value};
 
 /// OpenAI Codex API endpoint for responses

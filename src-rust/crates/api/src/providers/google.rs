@@ -14,8 +14,8 @@ use std::pin::Pin;
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use claurst_core::provider_id::{ModelId, ProviderId};
-use claurst_core::types::{
+use jet_core::provider_id::{ModelId, ProviderId};
+use jet_core::types::{
     ContentBlock, Message, MessageContent, Role, ToolResultContent, UsageInfo,
 };
 use futures::{Stream, StreamExt};
@@ -1046,7 +1046,7 @@ fn uuid_v4_simple() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use claurst_core::types::Message;
+    use jet_core::types::Message;
     use serde_json::json;
 
     fn test_request(messages: Vec<Message>) -> ProviderRequest {

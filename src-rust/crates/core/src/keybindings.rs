@@ -273,7 +273,7 @@ pub fn default_bindings() -> Vec<ParsedBinding> {
         .collect()
 }
 
-/// User keybindings loaded from ~/.claurst/keybindings.json
+/// User keybindings loaded from ~/.jet/keybindings.json
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserKeybindings {
     pub bindings: Vec<UserBinding>,

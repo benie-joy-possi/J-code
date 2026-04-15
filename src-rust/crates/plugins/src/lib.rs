@@ -1,4 +1,4 @@
-// claurst-plugins: Plugin runtime for the Claurst CLI.
+// jet-plugins: Plugin runtime for the jet CLI.
 //
 // This crate handles plugin discovery, manifest parsing, hook registration,
 // and the /plugin + /reload-plugins command definitions.
@@ -189,8 +189,8 @@ pub fn run_global_post_tool_hook(
 /// Discover and load all plugins from the standard locations.
 ///
 /// Search order:
-/// 1. `~/.claurst/plugins/`  (user-global)
-/// 2. `<project_dir>/.claurst/plugins/`  (project-local)
+/// 1. `~/.jet/plugins/`  (user-global)
+/// 2. `<project_dir>/.jet/plugins/`  (project-local)
 /// 3. Any paths listed in `extra_paths`
 ///
 /// Returns a fully populated `PluginRegistry`.  Errors encountered during
@@ -454,7 +454,7 @@ pub fn format_plugin_info(registry: &PluginRegistry, name: &str) -> String {
 
 /// Install a plugin from a local path.
 ///
-/// Copies the plugin directory into `~/.claurst/plugins/` and returns the
+/// Copies the plugin directory into `~/.jet/plugins/` and returns the
 /// loaded plugin name on success.
 pub fn install_plugin_from_path(source_path: &Path) -> Result<String, PluginError> {
     // Validate that the source looks like a plugin directory.
@@ -660,7 +660,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let plugin_dir = tmp
             .path()
-            .join(".claurst")
+            .join(".jet")
             .join("plugins")
             .join("test-plugin");
         std::fs::create_dir_all(&plugin_dir).unwrap();

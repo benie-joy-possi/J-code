@@ -1,4 +1,4 @@
-//! OpenAI Codex OAuth 2.0 PKCE flow for Claurst.
+//! OpenAI Codex OAuth 2.0 PKCE flow for jet.
 //!
 //! Implements authorization code flow with PKCE to obtain OpenAI access
 //! tokens for Codex model access.
@@ -7,12 +7,12 @@
 
 use anyhow::{anyhow, bail};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
-use claurst_core::codex_oauth::{
+use jet_core::codex_oauth::{
     CODEX_AUTHORIZE_URL, CODEX_CLIENT_ID, CODEX_OAUTH_PORT, CODEX_REDIRECT_URI, CODEX_SCOPES,
     CODEX_TOKEN_URL,
 };
-use claurst_core::oauth_config::CodexTokens;
-use claurst_tui::DeviceAuthEvent;
+use jet_core::oauth_config::CodexTokens;
+use jet_tui::DeviceAuthEvent;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
@@ -52,7 +52,7 @@ pub fn generate_state() -> String {
 /// Build the OpenAI authorization URL for Codex OAuth.
 pub fn build_auth_url(code_challenge: &str, state: &str) -> String {
     format!(
-        "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&code_challenge={}&code_challenge_method=S256&state={}&id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=claurst",
+        "{}?response_type=code&client_id={}&redirect_uri={}&scope={}&code_challenge={}&code_challenge_method=S256&state={}&id_token_add_organizations=true&codex_cli_simplified_flow=true&originator=jet",
         CODEX_AUTHORIZE_URL,
         CODEX_CLIENT_ID,
         urlencoding::encode(CODEX_REDIRECT_URI),
@@ -103,7 +103,7 @@ pub async fn run_oauth_flow(
     let tokens = exchange_code_for_tokens(&code, &verifier).await?;
 
     // Persist tokens
-    claurst_core::oauth_config::save_codex_tokens(&tokens)?;
+    jet_core::oauth_config::save_codex_tokens(&tokens)?;
 
     eprintln!("Codex login successful!");
     Ok(tokens)
@@ -157,7 +157,7 @@ async fn wait_for_callback(listener: TcpListener) -> anyhow::Result<(String, Str
     // Send HTML response to browser before processing
     let html = if error.is_empty() {
         "<html><body style='background:#131010;color:#f1ecec;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui'>\
-         <div style='text-align:center'><h1>Authorization Successful</h1><p>You can close this window and return to Claurst.</p></div>\
+         <div style='text-align:center'><h1>Authorization Successful</h1><p>You can close this window and return to jet.</p></div>\
          <script>setTimeout(()=>window.close(),2000)</script></body></html>"
     } else {
         "<html><body style='background:#131010;color:#f1ecec;display:flex;justify-content:center;align-items:center;height:100vh;font-family:system-ui'>\

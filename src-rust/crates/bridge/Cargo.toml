@@ -1,12 +1,12 @@
 [package]
-name = "claurst-bridge"
+name = "jet-bridge"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-claurst-core = { workspace = true }
-claurst-api = { workspace = true }
-claurst-query = { workspace = true }
+jet-core = { workspace = true }
+jet-api = { workspace = true }
+jet-query = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 futures = { workspace = true }

@@ -1,14 +1,14 @@
 //! T5-2: Message renderer snapshot tests.
 //! Renders each message type and verifies key content in returned Lines.
 
-use claurst_tui::messages::{
+use jet_tui::messages::{
     render_assistant_text, render_code_block, render_compact_boundary, render_hook_progress,
     render_rate_limit_banner, render_summary_message, render_system_message, render_thinking_block,
     render_tool_result_error, render_tool_result_success, render_tool_use, render_unseen_divider,
     render_user_command, render_user_local_command_output, render_user_memory_input,
     render_user_text, RenderContext,
 };
-use claurst_tui::timeline::{Timeline, TimelineStatus};
+use jet_tui::timeline::{Timeline, TimelineStatus};
 
 // ---------------------------------------------------------------------------
 // Helper: flatten all span content from a vec of Lines into one String.

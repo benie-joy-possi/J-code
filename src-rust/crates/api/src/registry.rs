@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use claurst_core::ProviderId;
+use jet_core::ProviderId;
 
 use crate::client::ClientConfig;
 use crate::provider::LlmProvider;
@@ -74,7 +74,7 @@ fn provider_from_key(provider_id: &str, key: String) -> Option<Arc<dyn LlmProvid
 }
 
 pub fn provider_from_config(
-    config: &claurst_core::config::Config,
+    config: &jet_core::config::Config,
     provider_id: &str,
 ) -> Option<Arc<dyn LlmProvider>> {
     let provider_cfg = config.provider_configs.get(provider_id);
@@ -210,7 +210,7 @@ pub fn runtime_provider_for(provider_id: &str) -> Option<Arc<dyn LlmProvider>> {
         _ => {}
     }
 
-    let auth_store = claurst_core::AuthStore::load();
+    let auth_store = jet_core::AuthStore::load();
     let key = auth_store.api_key_for(provider_id)?;
     if key.is_empty() {
         return None;
@@ -297,7 +297,7 @@ impl ProviderRegistry {
     }
 
     pub fn from_config(
-        config: &claurst_core::config::Config,
+        config: &jet_core::config::Config,
         anthropic_config: ClientConfig,
     ) -> Self {
         let mut registry = Self::from_environment_with_auth_store(anthropic_config);
@@ -378,7 +378,7 @@ impl ProviderRegistry {
     }
 
     /// Register [`CodexProvider`] if stored Codex OAuth tokens are available in
-    /// `~/.claurst/codex_tokens.json`.  Returns `&mut self` for builder chaining.
+    /// `~/.jet/codex_tokens.json`.  Returns `&mut self` for builder chaining.
     pub fn with_codex_if_configured(&mut self) -> &mut Self {
         if let Some(p) = CodexProvider::from_stored() {
             self.register(Arc::new(p));
@@ -414,24 +414,24 @@ impl ProviderRegistry {
     }
 
     /// Build a registry that checks **both** environment variables and the
-    /// persistent [`AuthStore`] (`~/.claurst/auth.json`) for credentials.
+    /// persistent [`AuthStore`] (`~/.jet/auth.json`) for credentials.
     ///
-    /// This ensures that API keys stored via `/connect` or `claurst auth` are
+    /// This ensures that API keys stored via `/connect` or `jet auth` are
     /// picked up at startup, not just env vars.  Falls back to
     /// `from_environment` for providers that only support env-var config, and
     /// adds any extra providers that have keys in the auth store.
     ///
-    /// [`AuthStore`]: claurst_core::AuthStore
+    /// [`AuthStore`]: jet_core::AuthStore
     pub fn from_environment_with_auth_store(anthropic_config: ClientConfig) -> Self {
         // Start with env-based registration.
         let mut registry = Self::from_environment(anthropic_config);
 
         // Now check the auth store for providers that weren't registered from
         // env vars.
-        let auth_store = claurst_core::AuthStore::load();
+        let auth_store = jet_core::AuthStore::load();
 
         for (provider_id, _cred) in &auth_store.credentials {
-            let pid = claurst_core::ProviderId::new(provider_id.as_str());
+            let pid = jet_core::ProviderId::new(provider_id.as_str());
             // Skip if already registered from env vars.
             if registry.get(&pid).is_some() {
                 continue;

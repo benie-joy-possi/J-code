@@ -106,7 +106,7 @@ static ACTIVE_TEAMS: Lazy<DashMap<String, Vec<CancellationToken>>> = Lazy::new(D
 // ---------------------------------------------------------------------------
 
 fn teams_base_dir() -> Option<std::path::PathBuf> {
-    dirs::home_dir().map(|h| h.join(".claurst").join("teams"))
+    dirs::home_dir().map(|h| h.join(".jet").join("teams"))
 }
 
 fn team_dir(team_name: &str) -> Option<std::path::PathBuf> {
@@ -493,7 +493,7 @@ impl Tool for TeamDeleteTool {
     fn description(&self) -> &str {
         "Cancel a running team and clean up its directories. \
          Signals all in-flight agents to stop, then removes \
-         ~/.claurst/teams/{team_name}/."
+         ~/.jet/teams/{team_name}/."
     }
 
     fn permission_level(&self) -> PermissionLevel {

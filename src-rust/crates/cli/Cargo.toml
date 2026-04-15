@@ -1,23 +1,23 @@
 [package]
-name = "claurst"
+name = "jet"
 version.workspace = true
 edition.workspace = true
 
 [[bin]]
-name = "claurst"
+name = "jet"
 path = "src/main.rs"
 
 [dependencies]
-claurst-core = { workspace = true, features = ["voice"] }
-claurst-api = { workspace = true }
-claurst-acp = { workspace = true }
-claurst-tools = { workspace = true }
-claurst-query = { workspace = true }
-claurst-tui = { workspace = true }
-claurst-commands = { workspace = true }
-claurst-mcp = { workspace = true }
-claurst-bridge = { workspace = true }
-claurst-plugins = { workspace = true }
+jet-core = { workspace = true, features = ["voice"] }
+jet-api = { workspace = true }
+jet-acp = { workspace = true }
+jet-tools = { workspace = true }
+jet-query = { workspace = true }
+jet-tui = { workspace = true }
+jet-commands = { workspace = true }
+jet-mcp = { workspace = true }
+jet-bridge = { workspace = true }
+jet-plugins = { workspace = true }
 tokio = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }

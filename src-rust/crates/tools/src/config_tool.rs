@@ -1,6 +1,6 @@
-// ConfigTool: get or set Claurst configuration settings at runtime.
+// ConfigTool: get or set jet configuration settings at runtime.
 //
-// Reads from and persists to ~/.claurst/settings.json.
+// Reads from and persists to ~/.jet/settings.json.
 // Supported settings: model, max_tokens, verbose, permission_mode.
 
 use crate::{PermissionLevel, Tool, ToolContext, ToolResult};
@@ -37,9 +37,9 @@ impl Tool for ConfigTool {
     }
 
     fn description(&self) -> &str {
-        "Get or set Claurst configuration settings. Omit 'value' to read the current value. \
+        "Get or set jet configuration settings. Omit 'value' to read the current value. \
          Supported settings: model, max_tokens, verbose, permission_mode, auto_compact. \
-         Changes persist to ~/.claurst/settings.json."
+         Changes persist to ~/.jet/settings.json."
     }
 
     fn permission_level(&self) -> PermissionLevel {
@@ -80,7 +80,7 @@ impl Tool for ConfigTool {
         }
 
         // Load current settings
-        let mut settings = match claurst_core::config::Settings::load().await {
+        let mut settings = match jet_core::config::Settings::load().await {
             Ok(s) => s,
             Err(e) => return ToolResult::error(format!("Failed to load settings: {}", e)),
         };
@@ -143,7 +143,7 @@ impl Tool for ConfigTool {
                     ToolResult::success(format!("auto_compact = {}", b))
                 }
                 "permission_mode" => {
-                    use claurst_core::config::PermissionMode;
+                    use jet_core::config::PermissionMode;
                     let s = match new_value.as_str() {
                         Some(s) => s,
                         None => {
@@ -205,8 +205,8 @@ impl Tool for ConfigTool {
     }
 }
 
-fn permission_mode_str(mode: &claurst_core::config::PermissionMode) -> &'static str {
-    use claurst_core::config::PermissionMode;
+fn permission_mode_str(mode: &jet_core::config::PermissionMode) -> &'static str {
+    use jet_core::config::PermissionMode;
     match mode {
         PermissionMode::Default => "default",
         PermissionMode::AcceptEdits => "accept_edits",

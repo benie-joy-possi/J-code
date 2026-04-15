@@ -3,7 +3,7 @@
 use std::collections::VecDeque;
 use std::time::Instant;
 
-use crate::overlays::{CLAURST_ACCENT, CLAURST_MUTED, CLAURST_PANEL_BORDER, CLAURST_TEXT};
+use crate::overlays::{jet_ACCENT, JET_MUTED, jet_PANEL_BORDER, JET_TEXT};
 
 /// Severity / visual style of a notification.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,7 +106,7 @@ use ratatui::Frame;
 impl NotificationKind {
     pub fn color(&self) -> Color {
         match self {
-            NotificationKind::Info => CLAURST_ACCENT,
+            NotificationKind::Info => jet_ACCENT,
             NotificationKind::Warning => Color::Yellow,
             NotificationKind::Error => Color::Red,
             NotificationKind::Success => Color::Rgb(80, 200, 120),
@@ -178,10 +178,10 @@ pub fn render_notification_banner(frame: &mut Frame, queue: &NotificationQueue, 
             format!(" {} ", icon),
             Style::default().fg(color).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(message, Style::default().fg(CLAURST_TEXT)),
+        Span::styled(message, Style::default().fg(JET_TEXT)),
     ];
     if notif.dismissible {
-        row0_spans.push(Span::styled(esc_hint, Style::default().fg(CLAURST_MUTED)));
+        row0_spans.push(Span::styled(esc_hint, Style::default().fg(JET_MUTED)));
     }
 
     // ── Row 1: thin progress bar for timed notifications ──
@@ -201,13 +201,13 @@ pub fn render_notification_banner(frame: &mut Frame, queue: &NotificationQueue, 
         let empty: String = " ".repeat(inner_w.saturating_sub(bar_w));
         Line::from(vec![
             Span::styled(format!(" {}", filled), Style::default().fg(color)),
-            Span::styled(empty, Style::default().fg(CLAURST_MUTED)),
+            Span::styled(empty, Style::default().fg(JET_MUTED)),
             Span::raw(" "),
         ])
     } else {
         Line::from(Span::styled(
             format!(" {}", "─".repeat(inner_w)),
-            Style::default().fg(CLAURST_PANEL_BORDER),
+            Style::default().fg(jet_PANEL_BORDER),
         ))
     };
 
@@ -238,7 +238,7 @@ pub fn render_notification_banner(frame: &mut Frame, queue: &NotificationQueue, 
     for row in 0..toast_height {
         if let Some(cell) = buf.cell_mut((toast_area.x + toast_width - 1, toast_area.y + row)) {
             cell.set_bg(bg);
-            cell.set_fg(CLAURST_PANEL_BORDER);
+            cell.set_fg(jet_PANEL_BORDER);
             cell.set_char('▐');
         }
     }

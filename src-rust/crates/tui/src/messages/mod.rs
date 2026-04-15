@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use crate::app::TurnMetadata;
 use crate::kitty_image::render_image;
 use crate::transcript_turn::reasoning_heading;
-use claurst_core::types::{ContentBlock, Message, Role, ToolResultContent};
+use jet_core::types::{ContentBlock, Message, Role, ToolResultContent};
 use ratatui::{
     style::{Color, Modifier, Style},
     text::{Line, Span},
@@ -2119,10 +2119,10 @@ mod tests {
 
     #[test]
     fn test_render_user_memory_input() {
-        let result = render_user_memory_input("project", "Claurst");
+        let result = render_user_memory_input("project", "jet");
         assert_eq!(result.len(), 2);
         let first = line_text(&result[0]);
-        assert!(first.contains("# project: Claurst"));
+        assert!(first.contains("# project: jet"));
         let second = line_text(&result[1]);
         assert!(second.contains("Got it."));
     }

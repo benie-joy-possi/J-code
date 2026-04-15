@@ -2,10 +2,10 @@
 //
 // Port of src/services/settingsSync/index.ts
 //
-// Syncs user settings and AGENTS.md memory files between a local Claurst
+// Syncs user settings and AGENTS.md memory files between a local jet
 // installation and claude.ai via:
 //   - Upload (interactive CLI, fire-and-forget at startup)
-//   - Download (CCR / CLAURST_REMOTE=1, blocking before plugin load)
+//   - Download (CCR / jet_REMOTE=1, blocking before plugin load)
 //
 // Authentication requires OAuth (Bearer token).  API-key-only users are
 // skipped silently — the TypeScript side gates on `isUsingOAuth()`.
@@ -36,13 +36,13 @@ const MAX_FILE_SIZE_BYTES: u64 = 500 * 1024;
 // ---------------------------------------------------------------------------
 
 /// Canonical sync key for the global user settings file.
-pub const SYNC_KEY_USER_SETTINGS: &str = "~/.claurst/settings.json";
+pub const SYNC_KEY_USER_SETTINGS: &str = "~/.jet/settings.json";
 /// Canonical sync key for the global user memory file.
-pub const SYNC_KEY_USER_MEMORY: &str = "~/.claurst/AGENTS.md";
+pub const SYNC_KEY_USER_MEMORY: &str = "~/.jet/AGENTS.md";
 
 /// Canonical sync key for per-project settings (keyed by git-remote hash).
 pub fn sync_key_project_settings(project_id: &str) -> String {
-    format!("projects/{project_id}/.claurst/settings.local.json")
+    format!("projects/{project_id}/.jet/settings.local.json")
 }
 
 /// Canonical sync key for per-project memory (keyed by git-remote hash).
@@ -234,7 +234,7 @@ impl SettingsSyncManager {
             if let Some(content) = data.memory_files.get(&proj_settings_key) {
                 let path = std::env::current_dir()
                     .unwrap_or_default()
-                    .join(".claurst")
+                    .join(".jet")
                     .join("settings.local.json");
                 match write_file_for_sync(&path, content).await {
                     Ok(()) => {
@@ -396,7 +396,7 @@ pub async fn collect_local_entries(project_id: Option<&str>) -> HashMap<String, 
     if let Some(pid) = project_id {
         let cwd = std::env::current_dir().unwrap_or_default();
 
-        let local_settings = cwd.join(".claurst").join("settings.local.json");
+        let local_settings = cwd.join(".jet").join("settings.local.json");
         if let Some(content) = try_read_for_sync(&local_settings).await {
             entries.insert(sync_key_project_settings(pid), content);
         }
@@ -434,11 +434,11 @@ async fn write_file_for_sync(path: &PathBuf, content: &str) -> Result<()> {
     Ok(())
 }
 
-/// Return the ~/.claurst directory.
+/// Return the ~/.jet directory.
 fn claude_config_dir() -> PathBuf {
     dirs::home_dir()
-        .map(|h| h.join(".claurst"))
-        .unwrap_or_else(|| PathBuf::from(".claurst"))
+        .map(|h| h.join(".jet"))
+        .unwrap_or_else(|| PathBuf::from(".jet"))
 }
 
 /// Exponential backoff delay for retry attempt `n` (1-indexed), capped at 30 s.
@@ -460,11 +460,11 @@ mod tests {
 
     #[test]
     fn test_sync_keys() {
-        assert_eq!(SYNC_KEY_USER_SETTINGS, "~/.claurst/settings.json");
-        assert_eq!(SYNC_KEY_USER_MEMORY, "~/.claurst/AGENTS.md");
+        assert_eq!(SYNC_KEY_USER_SETTINGS, "~/.jet/settings.json");
+        assert_eq!(SYNC_KEY_USER_MEMORY, "~/.jet/AGENTS.md");
         assert_eq!(
             sync_key_project_settings("abc123"),
-            "projects/abc123/.claurst/settings.local.json"
+            "projects/abc123/.jet/settings.local.json"
         );
         assert_eq!(
             sync_key_project_memory("abc123"),

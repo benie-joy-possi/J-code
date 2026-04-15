@@ -5,12 +5,12 @@
 // settings. Changes are persisted via Settings::save_sync().
 
 use crate::overlays::{
-    centered_rect, render_dark_overlay, render_dialog_bg, CLAURST_ACCENT, CLAURST_MUTED,
-    CLAURST_PANEL_BG, CLAURST_TEXT,
+    centered_rect, render_dark_overlay, render_dialog_bg, jet_ACCENT, JET_MUTED,
+    jet_PANEL_BG, JET_TEXT,
 };
-use claurst_core::config::{Config, Settings};
-use claurst_core::keybindings::default_bindings;
-use claurst_core::output_styles::builtin_styles;
+use jet_core::config::{Config, Settings};
+use jet_core::keybindings::default_bindings;
+use jet_core::output_styles::builtin_styles;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -271,7 +271,7 @@ impl Default for SettingsScreen {
 /// Read a boolean value from `settings.json` by camelCase key, falling back to
 /// `default` when the file is absent or the key is missing.
 fn read_setting_bool(_settings: &Settings, key: &str, default: bool) -> bool {
-    let path = claurst_core::config::Settings::config_dir().join("settings.json");
+    let path = jet_core::config::Settings::config_dir().join("settings.json");
     if let Ok(content) = std::fs::read_to_string(&path) {
         if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(b) = val.get(key).and_then(|v| v.as_bool()) {
@@ -285,7 +285,7 @@ fn read_setting_bool(_settings: &Settings, key: &str, default: bool) -> bool {
 /// Read a u8 value from `settings.json` by camelCase key, falling back to
 /// `default` when the file is absent or the key is missing.
 fn read_setting_u8(_settings: &Settings, key: &str, default: u8) -> u8 {
-    let path = claurst_core::config::Settings::config_dir().join("settings.json");
+    let path = jet_core::config::Settings::config_dir().join("settings.json");
     if let Ok(content) = std::fs::read_to_string(&path) {
         if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
             if let Some(n) = val.get(key).and_then(|v| v.as_u64()) {
@@ -299,7 +299,7 @@ fn read_setting_u8(_settings: &Settings, key: &str, default: u8) -> u8 {
 /// Write a single boolean key-value pair to `settings.json`, preserving other
 /// fields already present in the file.
 fn save_setting_bool(key: &str, value: bool) {
-    let path = claurst_core::config::Settings::config_dir().join("settings.json");
+    let path = jet_core::config::Settings::config_dir().join("settings.json");
     let mut val: serde_json::Value = std::fs::read_to_string(&path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
@@ -402,21 +402,21 @@ pub fn render_settings_screen(frame: &mut Frame, screen: &SettingsScreen, area: 
         Span::styled(
             " Settings",
             Style::default()
-                .fg(CLAURST_ACCENT)
+                .fg(jet_ACCENT)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" — Claurst", Style::default().fg(CLAURST_MUTED)),
+        Span::styled(" — jet", Style::default().fg(JET_MUTED)),
         Span::styled(
             format!(
                 "{:>width$}",
                 "Esc close",
                 width = inner.width.saturating_sub(19) as usize
             ),
-            Style::default().fg(CLAURST_MUTED),
+            Style::default().fg(JET_MUTED),
         ),
     ]);
     frame.render_widget(
-        Paragraph::new(title).style(Style::default().bg(CLAURST_PANEL_BG)),
+        Paragraph::new(title).style(Style::default().bg(jet_PANEL_BG)),
         header_area,
     );
 
@@ -429,21 +429,21 @@ pub fn render_settings_screen(frame: &mut Frame, screen: &SettingsScreen, area: 
                     format!(" {} ", t.label()),
                     Style::default()
                         .fg(Color::Black)
-                        .bg(CLAURST_ACCENT)
+                        .bg(jet_ACCENT)
                         .add_modifier(Modifier::BOLD),
                 )])
             } else {
                 Line::from(vec![Span::styled(
                     format!(" {} ", t.label()),
-                    Style::default().fg(CLAURST_MUTED),
+                    Style::default().fg(JET_MUTED),
                 )])
             }
         })
         .collect();
 
     let tabs = Tabs::new(tab_labels)
-        .divider(Span::styled("  ", Style::default().fg(CLAURST_MUTED)))
-        .style(Style::default().fg(CLAURST_MUTED).bg(CLAURST_PANEL_BG));
+        .divider(Span::styled("  ", Style::default().fg(JET_MUTED)))
+        .style(Style::default().fg(JET_MUTED).bg(jet_PANEL_BG));
     frame.render_widget(tabs, tabs_area);
 
     // Tab content
@@ -455,7 +455,7 @@ pub fn render_settings_screen(frame: &mut Frame, screen: &SettingsScreen, area: 
             Span::styled(
                 " Enter ",
                 Style::default()
-                    .fg(CLAURST_ACCENT)
+                    .fg(jet_ACCENT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw("save  "),
@@ -472,21 +472,21 @@ pub fn render_settings_screen(frame: &mut Frame, screen: &SettingsScreen, area: 
             Span::styled(
                 " Tab ",
                 Style::default()
-                    .fg(CLAURST_ACCENT)
+                    .fg(jet_ACCENT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw("next tab  "),
             Span::styled(
                 " ↑↓ ",
                 Style::default()
-                    .fg(CLAURST_ACCENT)
+                    .fg(jet_ACCENT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw("select  "),
             Span::styled(
                 " Space/Enter ",
                 Style::default()
-                    .fg(CLAURST_ACCENT)
+                    .fg(jet_ACCENT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::raw("toggle  "),
@@ -500,7 +500,7 @@ pub fn render_settings_screen(frame: &mut Frame, screen: &SettingsScreen, area: 
         ])
     };
     let footer_para = Paragraph::new(vec![footer])
-        .style(Style::default().fg(CLAURST_MUTED).bg(CLAURST_PANEL_BG))
+        .style(Style::default().fg(JET_MUTED).bg(jet_PANEL_BG))
         .alignment(Alignment::Center);
     frame.render_widget(footer_para, footer_area);
 }
@@ -540,7 +540,7 @@ fn build_general_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
     let model_val = cfg
         .model
         .clone()
-        .unwrap_or_else(|| claurst_core::constants::DEFAULT_MODEL.to_string());
+        .unwrap_or_else(|| jet_core::constants::DEFAULT_MODEL.to_string());
     lines.extend(field_lines(
         "model",
         "Model",
@@ -559,7 +559,7 @@ fn build_general_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
     let max_tokens_val = cfg
         .max_tokens
         .map(|n| n.to_string())
-        .unwrap_or_else(|| claurst_core::constants::DEFAULT_MAX_TOKENS.to_string());
+        .unwrap_or_else(|| jet_core::constants::DEFAULT_MAX_TOKENS.to_string());
     lines.extend(field_lines(
         "max_tokens",
         "Max Tokens",
@@ -653,11 +653,11 @@ fn build_display_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
 
     // Theme
     let theme_name = match &cfg.theme {
-        claurst_core::config::Theme::Default => "default",
-        claurst_core::config::Theme::Dark => "dark",
-        claurst_core::config::Theme::Light => "light",
-        claurst_core::config::Theme::Deuteranopia => "deuteranopia",
-        claurst_core::config::Theme::Custom(s) => s.as_str(),
+        jet_core::config::Theme::Default => "default",
+        jet_core::config::Theme::Dark => "dark",
+        jet_core::config::Theme::Light => "light",
+        jet_core::config::Theme::Deuteranopia => "deuteranopia",
+        jet_core::config::Theme::Custom(s) => s.as_str(),
     };
     lines.push(label_value_line("Theme", theme_name));
     lines.push(indent_line(
@@ -668,9 +668,9 @@ fn build_display_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
 
     // Output format
     let fmt = match &cfg.output_format {
-        claurst_core::config::OutputFormat::Text => "text",
-        claurst_core::config::OutputFormat::Json => "json",
-        claurst_core::config::OutputFormat::StreamJson => "stream-json",
+        jet_core::config::OutputFormat::Text => "text",
+        jet_core::config::OutputFormat::Json => "json",
+        jet_core::config::OutputFormat::StreamJson => "stream-json",
     };
     lines.push(label_value_line("Output Format", fmt));
     lines.push(indent_line(
@@ -720,7 +720,7 @@ fn build_display_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
             Span::styled(
                 format!("{}  {:<15}", marker, style.name),
                 Style::default()
-                    .fg(if active { CLAURST_ACCENT } else { CLAURST_TEXT })
+                    .fg(if active { jet_ACCENT } else { JET_TEXT })
                     .add_modifier(if active {
                         Modifier::BOLD
                     } else {
@@ -755,9 +755,9 @@ struct PrivacySnapshot {
 }
 
 impl PrivacySnapshot {
-    /// Load privacy fields from `~/.claurst/settings.json`.
+    /// Load privacy fields from `~/.jet/settings.json`.
     fn load() -> Self {
-        let path = claurst_core::config::Settings::config_dir().join("settings.json");
+        let path = jet_core::config::Settings::config_dir().join("settings.json");
         let Ok(content) = std::fs::read_to_string(&path) else {
             return Self::default();
         };
@@ -826,7 +826,7 @@ fn build_privacy_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
         &mut lines,
         "Telemetry",
         privacy.telemetry_enabled(),
-        "Sends anonymised usage statistics to help improve Claurst.",
+        "Sends anonymised usage statistics to help improve jet.",
     );
 
     // Usage sharing
@@ -847,7 +847,7 @@ fn build_privacy_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
 
     lines.push(Line::from(""));
     lines.push(Line::from(vec![Span::styled(
-        "  Note: Edit ~/.claurst/settings.json to toggle telemetry/sharing values.",
+        "  Note: Edit ~/.jet/settings.json to toggle telemetry/sharing values.",
         Style::default()
             .fg(Color::Yellow)
             .add_modifier(Modifier::ITALIC),
@@ -898,7 +898,7 @@ fn build_advanced_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
 
     // API key source
     let active_provider = cfg.selected_provider_id();
-    let env_source = claurst_core::config::api_key_env_vars_for_provider(active_provider)
+    let env_source = jet_core::config::api_key_env_vars_for_provider(active_provider)
         .iter()
         .find_map(|env_var| {
             std::env::var(env_var)
@@ -907,7 +907,7 @@ fn build_advanced_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
                 .map(|_| *env_var)
         });
     let stored_key = {
-        let auth_store = claurst_core::AuthStore::load();
+        let auth_store = jet_core::AuthStore::load();
         let lookup_keys: Vec<&str> = match active_provider {
             "togetherai" | "together-ai" => vec!["togetherai", "together-ai"],
             "lmstudio" | "lm-studio" => vec!["lmstudio", "lm-studio"],
@@ -923,8 +923,8 @@ fn build_advanced_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
         lookup_keys
             .iter()
             .any(|provider_id| match auth_store.get(provider_id) {
-                Some(claurst_core::StoredCredential::ApiKey { key }) => !key.is_empty(),
-                Some(claurst_core::StoredCredential::OAuthToken {
+                Some(jet_core::StoredCredential::ApiKey { key }) => !key.is_empty(),
+                Some(jet_core::StoredCredential::OAuthToken {
                     access, refresh, ..
                 }) if active_provider == "github-copilot" => {
                     !access.is_empty() || !refresh.is_empty()
@@ -976,7 +976,7 @@ fn build_advanced_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
                 Span::styled(
                     format!("  {:<20}", srv.name),
                     Style::default()
-                        .fg(CLAURST_ACCENT)
+                        .fg(jet_ACCENT)
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(format!("[{}]", kind), Style::default().fg(Color::DarkGray)),
@@ -1013,7 +1013,7 @@ fn build_advanced_lines(screen: &SettingsScreen) -> Vec<Line<'static>> {
                             .fg(Color::Yellow)
                             .add_modifier(Modifier::BOLD),
                     ),
-                    Span::styled(filter, Style::default().fg(CLAURST_ACCENT)),
+                    Span::styled(filter, Style::default().fg(jet_ACCENT)),
                     Span::styled(blocking.to_string(), Style::default().fg(Color::Red)),
                 ]));
                 lines.push(indent_line(
@@ -1058,7 +1058,7 @@ fn build_keybindings_lines(_screen: &SettingsScreen) -> Vec<Line<'static>> {
     lines.push(section_header("Key Bindings"));
     lines.push(Line::from(""));
     lines.push(Line::from(vec![Span::styled(
-        "  Edit ~/.claurst/keybindings.json to customise bindings.",
+        "  Edit ~/.jet/keybindings.json to customise bindings.",
         Style::default()
             .fg(Color::Yellow)
             .add_modifier(Modifier::ITALIC),
@@ -1122,7 +1122,7 @@ fn build_keybindings_lines(_screen: &SettingsScreen) -> Vec<Line<'static>> {
                     Span::styled(
                         format!("{:<25}", chord),
                         Style::default()
-                            .fg(CLAURST_ACCENT)
+                            .fg(jet_ACCENT)
                             .add_modifier(Modifier::BOLD),
                     ),
                     Span::styled(action.clone(), Style::default().fg(Color::White)),
@@ -1143,7 +1143,7 @@ fn section_header(title: &str) -> Line<'static> {
     Line::from(vec![Span::styled(
         format!("  {}", title),
         Style::default()
-            .fg(CLAURST_ACCENT)
+            .fg(jet_ACCENT)
             .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
     )])
 }
@@ -1153,10 +1153,10 @@ fn label_value_line(label: &str, value: &str) -> Line<'static> {
         Span::styled(
             format!("  {:<25}", label),
             Style::default()
-                .fg(CLAURST_TEXT)
+                .fg(JET_TEXT)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(value.to_string(), Style::default().fg(CLAURST_ACCENT)),
+        Span::styled(value.to_string(), Style::default().fg(jet_ACCENT)),
     ])
 }
 
@@ -1187,7 +1187,7 @@ fn toggle_field_lines(
     let row_style = if selected {
         Style::default()
             .fg(Color::Black)
-            .bg(CLAURST_ACCENT)
+            .bg(jet_ACCENT)
             .add_modifier(Modifier::BOLD)
     } else {
         Style::default()
@@ -1199,12 +1199,12 @@ fn toggle_field_lines(
             if selected {
                 row_style
                     .fg(Color::Black)
-                    .bg(CLAURST_ACCENT)
+                    .bg(jet_ACCENT)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
                     .fg(if enabled {
-                        CLAURST_TEXT
+                        JET_TEXT
                     } else {
                         Color::DarkGray
                     })
@@ -1221,7 +1221,7 @@ fn toggle_field_lines(
         Span::styled(
             format!("  {}", description),
             if selected {
-                Style::default().fg(Color::Black).bg(CLAURST_ACCENT)
+                Style::default().fg(Color::Black).bg(jet_ACCENT)
             } else {
                 Style::default().fg(Color::DarkGray)
             },
@@ -1235,12 +1235,12 @@ fn toggle_field_lines(
             if selected {
                 Style::default()
                     .fg(Color::Black)
-                    .bg(CLAURST_ACCENT)
+                    .bg(jet_ACCENT)
                     .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
                     .fg(if enabled {
-                        CLAURST_TEXT
+                        JET_TEXT
                     } else {
                         Color::DarkGray
                     })
@@ -1254,7 +1254,7 @@ fn toggle_field_lines(
         Span::styled(
             format!("  {}", description),
             if selected {
-                Style::default().fg(Color::Black).bg(CLAURST_ACCENT)
+                Style::default().fg(Color::Black).bg(jet_ACCENT)
             } else {
                 Style::default().fg(Color::DarkGray)
             },
@@ -1289,7 +1289,7 @@ fn field_lines(
     } else if has_pending {
         Color::Magenta
     } else {
-        CLAURST_ACCENT
+        jet_ACCENT
     };
 
     let edit_hint = if is_editing {
@@ -1303,7 +1303,7 @@ fn field_lines(
             Span::styled(
                 format!("  {:<25}", label),
                 Style::default()
-                    .fg(CLAURST_TEXT)
+                    .fg(JET_TEXT)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(display_value, Style::default().fg(value_color)),
@@ -1408,7 +1408,7 @@ pub fn handle_settings_key(
                         let model_val = cfg
                             .model
                             .clone()
-                            .unwrap_or_else(|| claurst_core::constants::DEFAULT_MODEL.to_string());
+                            .unwrap_or_else(|| jet_core::constants::DEFAULT_MODEL.to_string());
                         screen.start_edit("model", &model_val);
                     }
                     _ => {}

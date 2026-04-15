@@ -31,7 +31,7 @@ use crate::onboarding_dialog::render_onboarding_dialog;
 use crate::overage_upsell::render_overage_upsell;
 use crate::overlays::{
     render_global_search, render_help_overlay, render_history_search_overlay, render_rewind_flow,
-    CLAURST_ACCENT, CLAURST_MUTED, CLAURST_PANEL_BG, CLAURST_PANEL_BORDER, CLAURST_TEXT,
+    jet_ACCENT, JET_MUTED, jet_PANEL_BG, jet_PANEL_BORDER, JET_TEXT,
 };
 use crate::plugin_views::render_plugin_hints;
 use crate::privacy_screen::render_privacy_screen;
@@ -47,8 +47,8 @@ use crate::timeline::{Timeline, TimelineKind, TimelineRow, TimelineStatus};
 use crate::transcript_turn::{build_transcript_turns, TranscriptTurn};
 use crate::virtual_list::{VirtualItem, VirtualList};
 use crate::voice_mode_notice::render_voice_mode_notice;
-use claurst_core::constants::APP_VERSION;
-use claurst_core::types::Role;
+use jet_core::constants::APP_VERSION;
+use jet_core::types::Role;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -449,9 +449,9 @@ pub fn render_live_execution_timeline(
     }
 
     let border_style = if timeline.is_empty() {
-        Style::default().fg(CLAURST_PANEL_BORDER)
+        Style::default().fg(jet_PANEL_BORDER)
     } else {
-        Style::default().fg(CLAURST_ACCENT)
+        Style::default().fg(jet_ACCENT)
     };
 
     let block = Block::default()
@@ -459,7 +459,7 @@ pub fn render_live_execution_timeline(
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(border_style)
-        .style(Style::default().bg(CLAURST_PANEL_BG).fg(CLAURST_TEXT));
+        .style(Style::default().bg(jet_PANEL_BG).fg(JET_TEXT));
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -472,16 +472,16 @@ pub fn render_live_execution_timeline(
             Line::from(vec![Span::styled(
                 " No execution events yet",
                 Style::default()
-                    .fg(CLAURST_MUTED)
+                    .fg(JET_MUTED)
                     .add_modifier(Modifier::ITALIC),
             )]),
             Line::from(vec![Span::styled(
                 " Tool calls and turn summaries appear here.",
-                Style::default().fg(CLAURST_MUTED),
+                Style::default().fg(JET_MUTED),
             )]),
         ])
         .wrap(Wrap { trim: false })
-        .style(Style::default().bg(CLAURST_PANEL_BG));
+        .style(Style::default().bg(jet_PANEL_BG));
         frame.render_widget(empty, inner);
         return;
     }
@@ -529,15 +529,15 @@ pub fn render_live_execution_timeline(
         Span::styled(
             format!(" {} items", timeline.len()),
             Style::default()
-                .fg(CLAURST_TEXT)
+                .fg(JET_TEXT)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled("  ", Style::default().fg(CLAURST_MUTED)),
+        Span::styled("  ", Style::default().fg(JET_MUTED)),
         Span::styled(
             format!("{running_count} running"),
             Style::default().fg(Color::Yellow),
         ),
-        Span::styled("  ", Style::default().fg(CLAURST_MUTED)),
+        Span::styled("  ", Style::default().fg(JET_MUTED)),
         Span::styled(
             format!("{error_count} errors"),
             Style::default().fg(Color::Red),
@@ -572,7 +572,7 @@ pub fn render_live_execution_timeline(
         if separator_height > 0 {
             let separator = Line::from(vec![Span::styled(
                 "\u{2500}".repeat(chunks[2].width as usize),
-                Style::default().fg(CLAURST_PANEL_BORDER),
+                Style::default().fg(jet_PANEL_BORDER),
             )]);
             frame.render_widget(Paragraph::new(separator), chunks[2]);
         }
@@ -611,15 +611,15 @@ fn render_timeline_row(
     let base_style = if selected && focused {
         Style::default()
             .bg(Color::Rgb(58, 20, 34))
-            .fg(CLAURST_TEXT)
+            .fg(JET_TEXT)
             .add_modifier(Modifier::BOLD)
     } else if selected {
         Style::default()
             .bg(Color::Rgb(42, 18, 28))
-            .fg(CLAURST_TEXT)
+            .fg(JET_TEXT)
             .add_modifier(Modifier::BOLD)
     } else {
-        Style::default().bg(CLAURST_PANEL_BG).fg(CLAURST_TEXT)
+        Style::default().bg(jet_PANEL_BG).fg(JET_TEXT)
     };
 
     frame.render_widget(Block::default().style(base_style), area);
@@ -658,15 +658,15 @@ fn render_timeline_row(
     ) as usize;
 
     let line = Line::from(vec![
-        Span::styled(prefix.to_string(), base_style.fg(CLAURST_ACCENT)),
+        Span::styled(prefix.to_string(), base_style.fg(jet_ACCENT)),
         Span::raw(" "),
         Span::styled(status_mark, status_style),
         Span::raw(" "),
-        Span::styled(kind, Style::default().fg(CLAURST_MUTED)),
+        Span::styled(kind, Style::default().fg(JET_MUTED)),
         Span::raw(" "),
         Span::styled(label, base_style),
         Span::raw(" ".repeat(gap_width)),
-        Span::styled(meta, Style::default().fg(CLAURST_MUTED)),
+        Span::styled(meta, Style::default().fg(JET_MUTED)),
     ]);
     frame.render_widget(Paragraph::new(line).style(base_style), area);
 }
@@ -685,8 +685,8 @@ fn render_timeline_details(frame: &mut Frame, area: Rect, row: &TimelineRow, now
     let detail_block = Block::default()
         .title(title)
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(CLAURST_ACCENT))
-        .style(Style::default().bg(CLAURST_PANEL_BG).fg(CLAURST_TEXT));
+        .border_style(Style::default().fg(jet_ACCENT))
+        .style(Style::default().bg(jet_PANEL_BG).fg(JET_TEXT));
     let inner = detail_block.inner(area);
     frame.render_widget(detail_block, area);
 
@@ -706,19 +706,19 @@ fn render_timeline_details(frame: &mut Frame, area: Rect, row: &TimelineRow, now
     };
     let body = vec![
         Line::from(vec![
-            Span::styled("Preview: ", Style::default().fg(CLAURST_MUTED)),
-            Span::styled(preview.to_string(), Style::default().fg(CLAURST_TEXT)),
+            Span::styled("Preview: ", Style::default().fg(JET_MUTED)),
+            Span::styled(preview.to_string(), Style::default().fg(JET_TEXT)),
         ]),
         Line::from(""),
         Line::from(vec![Span::styled(
             details.to_string(),
-            Style::default().fg(CLAURST_TEXT),
+            Style::default().fg(JET_TEXT),
         )]),
     ];
     frame.render_widget(
         Paragraph::new(body)
             .wrap(Wrap { trim: false })
-            .style(Style::default().bg(CLAURST_PANEL_BG)),
+            .style(Style::default().bg(jet_PANEL_BG)),
         inner,
     );
 }
@@ -747,16 +747,16 @@ fn render_timeline_details_compact(frame: &mut Frame, area: Rect, row: &Timeline
             format_timeline_duration(row, now_ms)
         ),
         Style::default()
-            .fg(CLAURST_ACCENT)
+            .fg(jet_ACCENT)
             .add_modifier(Modifier::BOLD),
     )]));
 
     if area.height > 1 {
         lines.push(Line::from(vec![
-            Span::styled("Preview: ", Style::default().fg(CLAURST_MUTED)),
+            Span::styled("Preview: ", Style::default().fg(JET_MUTED)),
             Span::styled(
                 truncate_end(preview, area.width.saturating_sub(10) as usize),
-                Style::default().fg(CLAURST_TEXT),
+                Style::default().fg(JET_TEXT),
             ),
         ]));
     }
@@ -766,16 +766,16 @@ fn render_timeline_details_compact(frame: &mut Frame, area: Rect, row: &Timeline
         let mut detail_lines = details.lines();
         if let Some(first_line) = detail_lines.next() {
             lines.push(Line::from(vec![
-                Span::styled("Details: ", Style::default().fg(CLAURST_MUTED)),
+                Span::styled("Details: ", Style::default().fg(JET_MUTED)),
                 Span::styled(
                     truncate_end(first_line, details_width),
-                    Style::default().fg(CLAURST_TEXT),
+                    Style::default().fg(JET_TEXT),
                 ),
             ]));
         } else {
             lines.push(Line::from(vec![
-                Span::styled("Details: ", Style::default().fg(CLAURST_MUTED)),
-                Span::styled("No extra details.", Style::default().fg(CLAURST_TEXT)),
+                Span::styled("Details: ", Style::default().fg(JET_MUTED)),
+                Span::styled("No extra details.", Style::default().fg(JET_TEXT)),
             ]));
         }
 
@@ -784,10 +784,10 @@ fn render_timeline_details_compact(frame: &mut Frame, area: Rect, row: &Timeline
                 break;
             };
             lines.push(Line::from(vec![
-                Span::styled("         ", Style::default().fg(CLAURST_MUTED)),
+                Span::styled("         ", Style::default().fg(JET_MUTED)),
                 Span::styled(
                     truncate_end(next_line, details_width),
-                    Style::default().fg(CLAURST_TEXT),
+                    Style::default().fg(JET_TEXT),
                 ),
             ]));
         }
@@ -795,7 +795,7 @@ fn render_timeline_details_compact(frame: &mut Frame, area: Rect, row: &Timeline
 
     frame.render_widget(
         Paragraph::new(lines)
-            .style(Style::default().bg(CLAURST_PANEL_BG))
+            .style(Style::default().bg(jet_PANEL_BG))
             .wrap(Wrap { trim: false }),
         area,
     );
@@ -1342,7 +1342,7 @@ fn render_context_menu(frame: &mut Frame, app: &App) {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .style(Style::default().fg(Color::White).bg(Color::Rgb(24, 24, 30)))
-            .border_style(Style::default().fg(CLAURST_ACCENT));
+            .border_style(Style::default().fg(jet_ACCENT));
         menu_block.render(menu_area, frame.buffer_mut());
 
         // Render menu items
@@ -1373,7 +1373,7 @@ fn render_context_menu(frame: &mut Frame, app: &App) {
 
             let bg_color = if is_selected {
                 if *enabled {
-                    CLAURST_ACCENT
+                    jet_ACCENT
                 } else {
                     Color::Rgb(24, 24, 30)
                 }
@@ -1906,7 +1906,7 @@ fn render_welcome_box(frame: &mut Frame, app: &App, area: Rect) {
         // Too small: fall back to a single line
         let line = Line::from(vec![
             Span::styled(
-                "Claurst ",
+                "jet ",
                 Style::default()
                     .fg(CLAUDE_ORANGE)
                     .add_modifier(Modifier::BOLD),
@@ -1926,7 +1926,7 @@ fn render_welcome_box(frame: &mut Frame, app: &App, area: Rect) {
         height: box_height,
     };
 
-    // Outer border with title "Claurst vX.Y"
+    // Outer border with title "jet vX.Y"
     let accent = app.accent_color;
     let outer_block = Block::default()
         .borders(Borders::ALL)
@@ -1934,7 +1934,7 @@ fn render_welcome_box(frame: &mut Frame, app: &App, area: Rect) {
         .border_style(Style::default().fg(accent))
         .title(Line::from(vec![
             Span::styled(
-                " Claurst ",
+                " jet ",
                 Style::default().fg(accent).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -2029,9 +2029,9 @@ fn render_welcome_box(frame: &mut Frame, app: &App, area: Rect) {
     );
 
     // --- Right column ---
-    let tip_text = claurst_core::tips::select_tip(0)
+    let tip_text = jet_core::tips::select_tip(0)
         .map(|t| t.content.to_string())
-        .unwrap_or_else(|| "Edit AGENTS.md to add instructions for Claurst".to_string());
+        .unwrap_or_else(|| "Edit AGENTS.md to add instructions for jet".to_string());
 
     let mut right_lines: Vec<Line> = Vec::new();
     right_lines.push(Line::from(Span::styled(
@@ -2068,12 +2068,12 @@ fn render_welcome_box(frame: &mut Frame, app: &App, area: Rect) {
 /// Build a tool_use_id â†’ tool_name lookup from all messages in the transcript.
 /// This allows ToolResult blocks to dispatch to tool-specific renderers.
 fn build_tool_names(
-    messages: &[claurst_core::types::Message],
+    messages: &[jet_core::types::Message],
 ) -> std::collections::HashMap<String, String> {
     let mut map = std::collections::HashMap::new();
     for msg in messages {
         for block in msg.content_blocks() {
-            if let claurst_core::types::ContentBlock::ToolUse { id, name, .. } = block {
+            if let jet_core::types::ContentBlock::ToolUse { id, name, .. } = block {
                 map.insert(id.clone(), name.clone());
             }
         }
@@ -2656,7 +2656,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         // Permission mode badge (left side, mirrors TS bottom-left indicator).
         // Default mode is silent; non-default modes show a badge.
         {
-            use claurst_core::config::PermissionMode;
+            use jet_core::config::PermissionMode;
             match &app.config.permission_mode {
                 PermissionMode::BypassPermissions => {
                     if !spans.is_empty() {
@@ -2840,7 +2840,7 @@ fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
             }
             parts.push(Span::styled(
                 format!("[{}]", badge),
-                Style::default().fg(CLAURST_ACCENT),
+                Style::default().fg(jet_ACCENT),
             ));
         }
 

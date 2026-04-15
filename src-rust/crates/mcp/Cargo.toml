@@ -1,10 +1,10 @@
 [package]
-name = "claurst-mcp"
+name = "jet-mcp"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-claurst-core = { workspace = true }
+jet-core = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 futures = { workspace = true }

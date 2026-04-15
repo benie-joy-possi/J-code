@@ -160,7 +160,7 @@ fn render_provider_setup_page(frame: &mut Frame, area: Rect) {
         Line::from(vec![
             Span::styled("     › ", Style::default().fg(pink)),
             Span::styled(
-                "claurst auth login",
+                "jet auth login",
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
@@ -274,7 +274,7 @@ fn render_provider_setup_page(frame: &mut Frame, area: Rect) {
         Line::from(vec![
             Span::styled("     › ", Style::default().fg(pink)),
             Span::styled(
-                "claurst --provider ollama",
+                "jet --provider ollama",
                 Style::default()
                     .fg(Color::Yellow)
                     .add_modifier(Modifier::BOLD),
@@ -288,7 +288,7 @@ fn render_provider_setup_page(frame: &mut Frame, area: Rect) {
                 Style::default().fg(Color::Rgb(120, 120, 120)),
             ),
             Span::styled(
-                "claurst --help",
+                "jet --help",
                 Style::default().fg(Color::Rgb(150, 150, 150)),
             ),
         ]),
@@ -299,7 +299,7 @@ fn render_provider_setup_page(frame: &mut Frame, area: Rect) {
             Span::styled("/providers", Style::default().fg(Color::Rgb(150, 150, 150))),
         ]),
         Line::from(vec![Span::styled(
-            "  → 20+ more providers: claurst --help",
+            "  → 20+ more providers: jet --help",
             Style::default().fg(Color::DarkGray),
         )]),
         Line::from(""),
@@ -317,7 +317,7 @@ fn render_provider_setup_page(frame: &mut Frame, area: Rect) {
 }
 
 fn render_welcome_page(frame: &mut Frame, area: Rect) {
-    use crate::overlays::{render_dark_overlay, render_dialog_bg, CLAURST_PANEL_BG};
+    use crate::overlays::{render_dark_overlay, render_dialog_bg, jet_PANEL_BG};
 
     let pink = Color::Rgb(233, 30, 99);
     let dim = Color::Rgb(90, 90, 90);
@@ -343,7 +343,7 @@ fn render_welcome_page(frame: &mut Frame, area: Rect) {
     let lines: Vec<Line<'static>> = vec![
         Line::from(vec![
             Span::styled(
-                " Welcome to Claurst",
+                " Welcome to jet",
                 Style::default()
                     .fg(Color::White)
                     .add_modifier(Modifier::BOLD),
@@ -359,7 +359,7 @@ fn render_welcome_page(frame: &mut Frame, area: Rect) {
         ]),
         Line::from(""),
         Line::from(Span::styled(
-            "  Claurst is an AI-powered coding assistant in your terminal.",
+            "  jet is an AI-powered coding assistant in your terminal.",
             Style::default().fg(text),
         )),
         Line::from(""),
@@ -372,11 +372,11 @@ fn render_welcome_page(frame: &mut Frame, area: Rect) {
             Style::default().fg(text),
         )),
         Line::from(Span::styled(
-            "  Claurst can read, edit, and create files in your project.",
+            "  jet can read, edit, and create files in your project.",
             Style::default().fg(text),
         )),
         Line::from(Span::styled(
-            "  Claurst can run bash commands, search the web, and more.",
+            "  jet can run bash commands, search the web, and more.",
             Style::default().fg(text),
         )),
         Line::from(""),
@@ -400,12 +400,12 @@ fn render_welcome_page(frame: &mut Frame, area: Rect) {
     ];
 
     Paragraph::new(lines)
-        .bg(CLAURST_PANEL_BG)
+        .bg(jet_PANEL_BG)
         .render(inner, frame.buffer_mut());
 }
 
 fn render_keybindings_page(frame: &mut Frame, area: Rect) {
-    use crate::overlays::{render_dark_overlay, render_dialog_bg, CLAURST_PANEL_BG};
+    use crate::overlays::{render_dark_overlay, render_dialog_bg, jet_PANEL_BG};
 
     let pink = Color::Rgb(233, 30, 99);
     let dim = Color::Rgb(90, 90, 90);
@@ -490,7 +490,7 @@ fn render_keybindings_page(frame: &mut Frame, area: Rect) {
     ]));
 
     Paragraph::new(lines)
-        .bg(CLAURST_PANEL_BG)
+        .bg(jet_PANEL_BG)
         .render(inner, frame.buffer_mut());
 }
 
@@ -557,7 +557,7 @@ mod tests {
             .iter()
             .map(|c| c.symbol().chars().next().unwrap_or(' '))
             .collect();
-        assert!(content.contains("Welcome") || content.contains("Claurst"));
+        assert!(content.contains("Welcome") || content.contains("jet"));
     }
 
     #[test]

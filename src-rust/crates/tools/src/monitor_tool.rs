@@ -7,7 +7,7 @@
 
 use crate::{PermissionLevel, Tool, ToolContext, ToolResult};
 use async_trait::async_trait;
-use claurst_core::tasks::{global_registry, TaskStatus};
+use jet_core::tasks::{global_registry, TaskStatus};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
@@ -254,23 +254,23 @@ mod tests {
     }
 
     fn make_test_ctx() -> ToolContext {
-        use claurst_core::config::Config;
-        use claurst_core::permissions::AutoPermissionHandler;
+        use jet_core::config::Config;
+        use jet_core::permissions::AutoPermissionHandler;
         use std::path::PathBuf;
         use std::sync::atomic::AtomicUsize;
         use std::sync::Arc;
 
         let handler = Arc::new(AutoPermissionHandler {
-            mode: claurst_core::config::PermissionMode::Default,
+            mode: jet_core::config::PermissionMode::Default,
         });
         ToolContext {
             working_dir: PathBuf::from("."),
-            permission_mode: claurst_core::config::PermissionMode::Default,
+            permission_mode: jet_core::config::PermissionMode::Default,
             permission_handler: handler,
-            cost_tracker: claurst_core::cost::CostTracker::new(),
+            cost_tracker: jet_core::cost::CostTracker::new(),
             session_id: "test-monitor".to_string(),
             file_history: Arc::new(parking_lot::Mutex::new(
-                claurst_core::file_history::FileHistory::new(),
+                jet_core::file_history::FileHistory::new(),
             )),
             current_turn: Arc::new(AtomicUsize::new(0)),
             non_interactive: true,

@@ -5,7 +5,7 @@
 // CronListTool    – list all scheduled tasks
 //
 // Scheduled tasks are stored in a global in-memory store.
-// Durable tasks are persisted to `~/.claurst/scheduled_tasks.json`.
+// Durable tasks are persisted to `~/.jet/scheduled_tasks.json`.
 //
 // On first use the store is initialised from the JSON file; tasks older than
 // 7 days are automatically purged on load (matching TypeScript behaviour).
@@ -56,9 +56,9 @@ static CRON_STORE: Lazy<Arc<RwLock<HashMap<String, CronTask>>>> =
 // Disk path helpers
 // ---------------------------------------------------------------------------
 
-/// Path to `~/.claurst/scheduled_tasks.json`.
+/// Path to `~/.jet/scheduled_tasks.json`.
 fn scheduled_tasks_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".claurst").join("scheduled_tasks.json"))
+    dirs::home_dir().map(|h| h.join(".jet").join("scheduled_tasks.json"))
 }
 
 /// Ensure the store has been loaded from disk (once per process).
@@ -69,7 +69,7 @@ async fn ensure_store_loaded() {
     }
     *init = true;
 
-    // Load from ~/.claurst/scheduled_tasks.json if it exists.
+    // Load from ~/.jet/scheduled_tasks.json if it exists.
     let path = match scheduled_tasks_path() {
         Some(p) => p,
         None => return,
@@ -298,7 +298,7 @@ impl Tool for CronCreateTool {
                 },
                 "durable": {
                     "type": "boolean",
-                    "description": "true = persist to .claurst/scheduled_tasks.json; false (default) = session only"
+                    "description": "true = persist to .jet/scheduled_tasks.json; false (default) = session only"
                 }
             },
             "required": ["cron", "prompt"]
@@ -345,7 +345,7 @@ impl Tool for CronCreateTool {
 
         store.insert(id.clone(), task);
 
-        // Persist to ~/.claurst/scheduled_tasks.json for durable tasks.
+        // Persist to ~/.jet/scheduled_tasks.json for durable tasks.
         if params.durable {
             if let Err(e) = persist_tasks_to_disk(&store).await {
                 debug!("Failed to persist cron task to disk: {}", e);
@@ -355,7 +355,7 @@ impl Tool for CronCreateTool {
         let human = cron_to_human(&params.cron);
 
         let where_note = if params.durable {
-            "Persisted to ~/.claurst/scheduled_tasks.json"
+            "Persisted to ~/.jet/scheduled_tasks.json"
         } else {
             "Session-only (dies when Claude exits)"
         };
@@ -506,7 +506,7 @@ impl Tool for CronListTool {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Persist all durable tasks to `~/.claurst/scheduled_tasks.json`.
+/// Persist all durable tasks to `~/.jet/scheduled_tasks.json`.
 async fn persist_tasks_to_disk(store: &HashMap<String, CronTask>) -> Result<(), String> {
     let durable: Vec<&CronTask> = store.values().filter(|t| t.durable).collect();
     let json = serde_json::to_string_pretty(&durable).map_err(|e| e.to_string())?;

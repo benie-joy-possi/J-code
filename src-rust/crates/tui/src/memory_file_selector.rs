@@ -7,8 +7,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::overlays::{
-    centered_rect, render_dark_overlay_buf, render_dialog_bg_buf, CLAURST_ACCENT, CLAURST_MUTED,
-    CLAURST_PANEL_BG, CLAURST_TEXT,
+    centered_rect, render_dark_overlay_buf, render_dialog_bg_buf, jet_ACCENT, JET_MUTED,
+    jet_PANEL_BG, JET_TEXT,
 };
 
 // ---------------------------------------------------------------------------
@@ -53,9 +53,9 @@ impl MemoryFileSelectorState {
     /// Open the selector for the given project root.
     ///
     /// Populates the file list with:
-    /// - User:    `~/.claurst/AGENTS.md`
+    /// - User:    `~/.jet/AGENTS.md`
     /// - Project: `{project_root}/AGENTS.md`
-    /// - Local:   `{project_root}/.claurst/AGENTS.md`
+    /// - Local:   `{project_root}/.jet/AGENTS.md`
     ///
     /// Each entry is marked `exists = true/false` based on the filesystem.
     pub fn open(&mut self, project_root: &std::path::Path) {
@@ -63,8 +63,8 @@ impl MemoryFileSelectorState {
         self.selected = 0;
         self.files.clear();
 
-        // User-level: ~/.claurst/AGENTS.md
-        let user_path = claurst_core::config::Settings::config_dir().join("AGENTS.md");
+        // User-level: ~/.jet/AGENTS.md
+        let user_path = jet_core::config::Settings::config_dir().join("AGENTS.md");
         let user_display = {
             let home = dirs::home_dir().unwrap_or_default();
             let rel = user_path.strip_prefix(&home).unwrap_or(&user_path);
@@ -87,8 +87,8 @@ impl MemoryFileSelectorState {
             file_type: MemoryFileType::Project,
         });
 
-        // Local-level: {project_root}/.claurst/AGENTS.md
-        let local_path = project_root.join(".claurst").join("AGENTS.md");
+        // Local-level: {project_root}/.jet/AGENTS.md
+        let local_path = project_root.join(".jet").join("AGENTS.md");
         let local_display = local_path.display().to_string();
         self.files.push(MemoryFile {
             exists: local_path.exists(),
@@ -164,17 +164,17 @@ pub fn render_memory_file_selector(state: &MemoryFileSelectorState, area: Rect, 
         Span::styled(
             " Memory",
             Style::default()
-                .fg(CLAURST_ACCENT)
+                .fg(jet_ACCENT)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" — choose a file", Style::default().fg(CLAURST_MUTED)),
+        Span::styled(" — choose a file", Style::default().fg(JET_MUTED)),
         Span::styled(
             format!(
                 "{:>width$}",
                 "Esc close",
                 width = inner.width.saturating_sub(24) as usize
             ),
-            Style::default().fg(CLAURST_MUTED),
+            Style::default().fg(JET_MUTED),
         ),
     ]));
     lines.push(Line::from(""));
@@ -187,7 +187,7 @@ pub fn render_memory_file_selector(state: &MemoryFileSelectorState, area: Rect, 
         };
 
         let new_tag = if !file.exists {
-            Span::styled(" (new)", Style::default().fg(CLAURST_MUTED))
+            Span::styled(" (new)", Style::default().fg(JET_MUTED))
         } else {
             Span::raw("")
         };
@@ -200,14 +200,14 @@ pub fn render_memory_file_selector(state: &MemoryFileSelectorState, area: Rect, 
                 ),
                 Style::default()
                     .fg(Color::Black)
-                    .bg(CLAURST_ACCENT)
+                    .bg(jet_ACCENT)
                     .add_modifier(Modifier::BOLD),
             )]));
         } else {
             lines.push(Line::from(vec![
                 Span::styled(
                     format!("    {type_label} {}", file.display_path),
-                    Style::default().fg(CLAURST_TEXT),
+                    Style::default().fg(JET_TEXT),
                 ),
                 new_tag,
             ]));
@@ -217,11 +217,11 @@ pub fn render_memory_file_selector(state: &MemoryFileSelectorState, area: Rect, 
     lines.push(Line::from(""));
     lines.push(Line::from(vec![Span::styled(
         "  \u{2191}\u{2193} navigate  Enter select  Esc close",
-        Style::default().fg(CLAURST_MUTED),
+        Style::default().fg(JET_MUTED),
     )]));
 
     let para = Paragraph::new(lines)
-        .style(Style::default().bg(CLAURST_PANEL_BG).fg(CLAURST_TEXT))
+        .style(Style::default().bg(jet_PANEL_BG).fg(JET_TEXT))
         .alignment(Alignment::Left);
 
     use ratatui::widgets::Widget;

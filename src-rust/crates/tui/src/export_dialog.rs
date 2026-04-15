@@ -9,8 +9,8 @@ use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
 use crate::overlays::{
-    begin_modal_frame, modal_header_line_area, render_modal_title_frame, CLAURST_ACCENT,
-    CLAURST_MUTED, CLAURST_PANEL_BG, CLAURST_TEXT,
+    begin_modal_frame, modal_header_line_area, render_modal_title_frame, jet_ACCENT,
+    JET_MUTED, jet_PANEL_BG, JET_TEXT,
 };
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ pub fn render_export_dialog(frame: &mut Frame, state: &ExportDialogState, area: 
         frame.render_widget(
             Paragraph::new(Line::from(vec![Span::styled(
                 " Choose a format to export this session.",
-                Style::default().fg(CLAURST_MUTED),
+                Style::default().fg(JET_MUTED),
             )])),
             subtitle_area,
         );
@@ -93,21 +93,21 @@ pub fn render_export_dialog(frame: &mut Frame, state: &ExportDialogState, area: 
         Line::from(""),
         Line::from(vec![Span::styled(
             " Saved to ./claude-export-<timestamp>.<ext>",
-            Style::default().fg(CLAURST_MUTED),
+            Style::default().fg(JET_MUTED),
         )]),
     ];
 
     frame.render_widget(
         Paragraph::new(lines)
             .wrap(Wrap { trim: false })
-            .style(Style::default().bg(CLAURST_PANEL_BG)),
+            .style(Style::default().bg(jet_PANEL_BG)),
         layout.body_area,
     );
     frame.render_widget(
         Paragraph::new(Line::from(vec![Span::styled(
             " tab/←/→ switch  ·  enter export  ·  1/2 choose",
             Style::default()
-                .fg(CLAURST_MUTED)
+                .fg(JET_MUTED)
                 .add_modifier(Modifier::ITALIC),
         )])),
         layout.footer_area,
@@ -122,15 +122,15 @@ fn export_option_row(
     width: u16,
 ) -> Line<'static> {
     let bg = if selected {
-        CLAURST_ACCENT
+        jet_ACCENT
     } else {
-        CLAURST_PANEL_BG
+        jet_PANEL_BG
     };
-    let fg = if selected { Color::White } else { CLAURST_TEXT };
+    let fg = if selected { Color::White } else { JET_TEXT };
     let desc_fg = if selected {
         Color::Rgb(245, 220, 232)
     } else {
-        CLAURST_MUTED
+        JET_MUTED
     };
     let mut spans = vec![
         Span::styled(format!(" [{}] ", key), Style::default().fg(desc_fg).bg(bg)),
@@ -156,20 +156,20 @@ fn export_option_row(
 // ---------------------------------------------------------------------------
 
 pub fn export_as_markdown(
-    messages: &[claurst_core::types::Message],
+    messages: &[jet_core::types::Message],
     session_title: Option<&str>,
 ) -> String {
-    use claurst_core::types::Role;
+    use jet_core::types::Role;
     let mut out = String::new();
     if let Some(title) = session_title {
         out.push_str(&format!("# {}\n\n", title));
     } else {
-        out.push_str("# Claurst Conversation Export\n\n");
+        out.push_str("# jet Conversation Export\n\n");
     }
     for msg in messages {
         let label = match msg.role {
             Role::User => "**User**",
-            Role::Assistant => "**Claurst**",
+            Role::Assistant => "**jet**",
         };
         let text = msg.get_all_text();
         out.push_str(&format!("{}\n\n{}\n\n---\n\n", label, text));
@@ -178,10 +178,10 @@ pub fn export_as_markdown(
 }
 
 pub fn export_as_json(
-    messages: &[claurst_core::types::Message],
+    messages: &[jet_core::types::Message],
     session_title: Option<&str>,
 ) -> serde_json::Value {
-    use claurst_core::types::Role;
+    use jet_core::types::Role;
     let items: Vec<serde_json::Value> = messages
         .iter()
         .map(|m| {

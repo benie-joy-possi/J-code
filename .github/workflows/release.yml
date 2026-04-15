@@ -120,7 +120,7 @@ jobs:
       - name: Build release binary (native)
         if: ${{ !matrix.cross }}
         working-directory: src-rust
-        run: cargo build --release --locked --package claurst --target ${{ matrix.target }}
+        run: cargo build --release --locked --package jet --target ${{ matrix.target }}
 
       - name: Create Cross.toml for cross-compilation
         if: matrix.cross
@@ -138,12 +138,12 @@ jobs:
       - name: Build release binary (cross)
         if: matrix.cross
         working-directory: src-rust
-        run: cross build --release --locked --package claurst --target ${{ matrix.target }}
+        run: cross build --release --locked --package jet --target ${{ matrix.target }}
 
       - name: Verify binary exists
         shell: bash
         run: |
-          BINARY="src-rust/target/${{ matrix.target }}/release/claurst${{ matrix.ext }}"
+          BINARY="src-rust/target/${{ matrix.target }}/release/jet${{ matrix.ext }}"
           if [[ ! -f "$BINARY" ]]; then
             echo "::error::Binary not found at $BINARY"
             exit 1
@@ -154,7 +154,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp "src-rust/target/${{ matrix.target }}/release/claurst${{ matrix.ext }}" \
+          cp "src-rust/target/${{ matrix.target }}/release/jet${{ matrix.ext }}" \
              "dist/${{ matrix.artifact }}${{ matrix.ext }}"
 
       - name: Upload artifact

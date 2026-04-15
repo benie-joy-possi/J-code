@@ -196,7 +196,7 @@ static TOOL_CATALOG: &[ToolEntry] = &[
     },
     ToolEntry {
         name: "Config",
-        description: "Get or set Claurst configuration",
+        description: "Get or set jet configuration",
         keywords: &[
             "config",
             "settings",

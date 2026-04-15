@@ -36,15 +36,15 @@ pub use skill_prefetch::{
     format_skill_listing, prefetch_skills, SharedSkillIndex, SkillDefinition, SkillIndex,
 };
 
-use claurst_api::{
+use jet_api::{
     AnthropicStreamEvent, ApiMessage, ApiToolDefinition, CreateMessageRequest, StreamAccumulator,
     StreamHandler, SystemPrompt, ThinkingConfig,
 };
-use claurst_core::config::Config;
-use claurst_core::cost::CostTracker;
-use claurst_core::error::ClaudeError;
-use claurst_core::types::{ContentBlock, Message, ToolResultContent, UsageInfo};
-use claurst_tools::{Tool, ToolContext, ToolResult};
+use jet_core::config::Config;
+use jet_core::cost::CostTracker;
+use jet_core::error::ClaudeError;
+use jet_core::types::{ContentBlock, Message, ToolResultContent, UsageInfo};
+use jet_tools::{Tool, ToolContext, ToolResult};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -80,7 +80,7 @@ pub struct QueryConfig {
     pub max_turns: u32,
     pub system_prompt: Option<String>,
     pub append_system_prompt: Option<String>,
-    pub output_style: claurst_core::system_prompt::OutputStyle,
+    pub output_style: jet_core::system_prompt::OutputStyle,
     pub output_style_prompt: Option<String>,
     pub working_directory: Option<String>,
     pub thinking_budget: Option<u32>,
@@ -93,7 +93,7 @@ pub struct QueryConfig {
     /// the effort level's `thinking_budget_tokens()` is used as the
     /// thinking budget.  Also provides a temperature override when the
     /// level specifies one.
-    pub effort_level: Option<claurst_core::effort::EffortLevel>,
+    pub effort_level: Option<jet_core::effort::EffortLevel>,
     /// T1-4: Optional shared command queue.
     ///
     /// When set, the query loop drains this queue before each API call and
@@ -117,27 +117,27 @@ pub struct QueryConfig {
     /// When `config.provider` is set to something other than "anthropic" and
     /// this registry contains that provider, the registry's provider is used
     /// instead of `AnthropicClient`.
-    pub provider_registry: Option<std::sync::Arc<claurst_api::ProviderRegistry>>,
+    pub provider_registry: Option<std::sync::Arc<jet_api::ProviderRegistry>>,
     /// Active agent name (e.g., "build", "plan", "explore", or None for default).
     pub agent_name: Option<String>,
     /// Resolved agent definition for the current session.
-    pub agent_definition: Option<claurst_core::AgentDefinition>,
+    pub agent_definition: Option<jet_core::AgentDefinition>,
     /// Optional shared model registry for dynamic provider and model resolution.
     /// When set, the query loop uses this instead of constructing a fresh registry.
-    pub model_registry: Option<std::sync::Arc<claurst_api::ModelRegistry>>,
+    pub model_registry: Option<std::sync::Arc<jet_api::ModelRegistry>>,
     /// Managed agent (manager-executor) configuration.
-    pub managed_agents: Option<claurst_core::ManagedAgentConfig>,
+    pub managed_agents: Option<jet_core::ManagedAgentConfig>,
 }
 
 impl Default for QueryConfig {
     fn default() -> Self {
         Self {
-            model: claurst_core::constants::DEFAULT_MODEL.to_string(),
-            max_tokens: claurst_core::constants::DEFAULT_MAX_TOKENS,
-            max_turns: claurst_core::constants::MAX_TURNS_DEFAULT,
+            model: jet_core::constants::DEFAULT_MODEL.to_string(),
+            max_tokens: jet_core::constants::DEFAULT_MAX_TOKENS,
+            max_turns: jet_core::constants::MAX_TURNS_DEFAULT,
             system_prompt: None,
             append_system_prompt: None,
-            output_style: claurst_core::system_prompt::OutputStyle::Default,
+            output_style: jet_core::system_prompt::OutputStyle::Default,
             output_style_prompt: None,
             working_directory: None,
             thinking_budget: None,
@@ -174,11 +174,11 @@ impl QueryConfig {
     ///
     /// Prefers the best model for the configured provider (from models.dev data)
     /// over the hardcoded defaults.
-    pub fn from_config_with_registry(cfg: &Config, registry: &claurst_api::ModelRegistry) -> Self {
+    pub fn from_config_with_registry(cfg: &Config, registry: &jet_api::ModelRegistry) -> Self {
         // We can't move the Arc here, but we need a clone for the query loop.
         // Callers typically wrap the registry in an Arc already.
         Self {
-            model: claurst_api::effective_model_for_config(cfg, registry),
+            model: jet_api::effective_model_for_config(cfg, registry),
             max_tokens: cfg.effective_max_tokens(),
             output_style: cfg.effective_output_style(),
             output_style_prompt: cfg.resolve_output_style_prompt(),
@@ -189,21 +189,21 @@ impl QueryConfig {
     }
 }
 
-fn reasoning_effort_for_level(effort_level: claurst_core::effort::EffortLevel) -> &'static str {
+fn reasoning_effort_for_level(effort_level: jet_core::effort::EffortLevel) -> &'static str {
     match effort_level {
-        claurst_core::effort::EffortLevel::Low => "low",
-        claurst_core::effort::EffortLevel::Medium => "medium",
-        claurst_core::effort::EffortLevel::High | claurst_core::effort::EffortLevel::Max => "high",
+        jet_core::effort::EffortLevel::Low => "low",
+        jet_core::effort::EffortLevel::Medium => "medium",
+        jet_core::effort::EffortLevel::High | jet_core::effort::EffortLevel::Max => "high",
     }
 }
 
 fn google_thinking_level_for_effort(
-    effort_level: Option<claurst_core::effort::EffortLevel>,
+    effort_level: Option<jet_core::effort::EffortLevel>,
 ) -> &'static str {
-    match effort_level.unwrap_or(claurst_core::effort::EffortLevel::High) {
-        claurst_core::effort::EffortLevel::Low => "low",
-        claurst_core::effort::EffortLevel::Medium => "medium",
-        claurst_core::effort::EffortLevel::High | claurst_core::effort::EffortLevel::Max => "high",
+    match effort_level.unwrap_or(jet_core::effort::EffortLevel::High) {
+        jet_core::effort::EffortLevel::Low => "low",
+        jet_core::effort::EffortLevel::Medium => "medium",
+        jet_core::effort::EffortLevel::High | jet_core::effort::EffortLevel::Max => "high",
     }
 }
 
@@ -263,7 +263,7 @@ fn is_openaiish_provider(provider_id: &str) -> bool {
 fn build_provider_options(
     provider_id: &str,
     model_id: &str,
-    effort_level: Option<claurst_core::effort::EffortLevel>,
+    effort_level: Option<jet_core::effort::EffortLevel>,
     thinking_budget: Option<u32>,
 ) -> Value {
     let mut options = serde_json::Map::new();
@@ -460,7 +460,7 @@ pub struct PostSamplingHookResult {
     /// Error messages produced by hooks with non-zero exit codes.
     /// These are injected into the conversation as user messages before the
     /// next model turn so the model can react to them.
-    pub blocking_errors: Vec<claurst_core::types::Message>,
+    pub blocking_errors: Vec<jet_core::types::Message>,
     /// When `true` the query loop must not continue and should surface the
     /// error messages to the caller.  Set when any hook exits with code > 1.
     pub prevent_continuation: bool,
@@ -474,11 +474,11 @@ pub struct PostSamplingHookResult {
 /// If the exit code is **strictly greater than 1** `prevent_continuation` is
 /// set so the query loop can return early.
 pub fn fire_post_sampling_hooks(
-    _turn_result: &claurst_core::types::Message,
-    config: &claurst_core::config::Config,
+    _turn_result: &jet_core::types::Message,
+    config: &jet_core::config::Config,
 ) -> PostSamplingHookResult {
-    use claurst_core::config::HookEvent;
-    use claurst_core::types::Message;
+    use jet_core::config::HookEvent;
+    use jet_core::types::Message;
 
     let mut result = PostSamplingHookResult::default();
 
@@ -543,11 +543,11 @@ pub fn fire_post_sampling_hooks(
 /// Stop hooks are non-blocking by design: the caller does not wait for them.
 /// Returns an empty `Vec` immediately; results (if any) are lost.
 pub fn stop_hooks_with_full_behavior(
-    turn_result: &claurst_core::types::Message,
-    config: &claurst_core::config::Config,
+    turn_result: &jet_core::types::Message,
+    config: &jet_core::config::Config,
     working_dir: std::path::PathBuf,
-) -> Vec<claurst_core::types::Message> {
-    use claurst_core::config::HookEvent;
+) -> Vec<jet_core::types::Message> {
+    use jet_core::config::HookEvent;
 
     let entries = match config.hooks.get(&HookEvent::Stop) {
         Some(e) if !e.is_empty() => e.clone(),
@@ -589,9 +589,9 @@ pub fn stop_hooks_with_full_behavior(
 fn total_tool_result_chars(messages: &[Message]) -> usize {
     messages
         .iter()
-        .filter(|m| m.role == claurst_core::types::Role::User)
+        .filter(|m| m.role == jet_core::types::Role::User)
         .flat_map(|m| match &m.content {
-            claurst_core::types::MessageContent::Blocks(blocks) => blocks.as_slice(),
+            jet_core::types::MessageContent::Blocks(blocks) => blocks.as_slice(),
             _ => &[],
         })
         .filter_map(|b| {
@@ -636,11 +636,11 @@ fn apply_tool_result_budget(messages: Vec<Message>, budget: usize) -> (Vec<Messa
     let mut result = messages;
 
     'outer: for msg in result.iter_mut() {
-        if msg.role != claurst_core::types::Role::User {
+        if msg.role != jet_core::types::Role::User {
             continue;
         }
         let blocks = match &mut msg.content {
-            claurst_core::types::MessageContent::Blocks(b) => b,
+            jet_core::types::MessageContent::Blocks(b) => b,
             _ => continue,
         };
         for block in blocks.iter_mut() {
@@ -700,7 +700,7 @@ const MAX_TOKENS_RECOVERY_MSG: &str =
 /// appended as a plain user message between turns.  Callers that do not need
 /// command queuing may pass `None` or an empty `Vec`.
 pub async fn run_query_loop(
-    client: &claurst_api::AnthropicClient,
+    client: &jet_api::AnthropicClient,
     messages: &mut Vec<Message>,
     tools: &[Box<dyn Tool>],
     tool_ctx: &ToolContext,
@@ -912,7 +912,7 @@ pub async fn run_query_loop(
             let tx = tx.clone();
             Arc::new(ChannelStreamHandler { tx })
         } else {
-            Arc::new(claurst_api::streaming::NullStreamHandler)
+            Arc::new(jet_api::streaming::NullStreamHandler)
         };
 
         // Non-Anthropic provider dispatch: if the model is "provider/model"
@@ -989,14 +989,14 @@ pub async fn run_query_loop(
                 // Use the shared model registry from QueryConfig if available;
                 // otherwise construct a temporary one.
                 let temp_reg;
-                let model_reg: &claurst_api::ModelRegistry =
+                let model_reg: &jet_api::ModelRegistry =
                     if let Some(ref shared) = config.model_registry {
                         shared
                     } else {
                         temp_reg = {
-                            let mut r = claurst_api::ModelRegistry::new();
+                            let mut r = jet_api::ModelRegistry::new();
                             if let Some(cache_dir) = dirs::cache_dir() {
-                                let cache_path = cache_dir.join("claurst").join("models_dev.json");
+                                let cache_path = cache_dir.join("jet").join("models_dev.json");
                                 r.load_cache(&cache_path);
                             }
                             r
@@ -1023,14 +1023,14 @@ pub async fn run_query_loop(
             let use_provider_dispatch = provider_id_str != "anthropic" || client.api_key_is_empty();
 
             if use_provider_dispatch {
-                let pid = claurst_core::provider_id::ProviderId::new(&provider_id_str);
+                let pid = jet_core::provider_id::ProviderId::new(&provider_id_str);
 
                 // Always prefer a fresh provider built from the auth_store so
                 // that keys added at runtime via /connect are picked up
                 // immediately — even when the provider was pre-registered at
                 // startup with a stale or missing key.
                 let runtime_provider =
-                    claurst_api::registry::runtime_provider_for(&provider_id_str);
+                    jet_api::registry::runtime_provider_for(&provider_id_str);
 
                 let registry_provider = if runtime_provider.is_some() {
                     // Fresh auth_store key available — use it instead of the
@@ -1052,7 +1052,7 @@ pub async fn run_query_loop(
                     .get(&provider_id_str)
                     .and_then(|pc| pc.api_base.as_deref())
                 {
-                    use claurst_api::providers::openai_compat_providers;
+                    use jet_api::providers::openai_compat_providers;
                     let trimmed = override_base.trim_end_matches('/');
                     // Avoid double /v1 suffix: only append if not already present.
                     let base_url = if trimmed.ends_with("/v1") {
@@ -1060,7 +1060,7 @@ pub async fn run_query_loop(
                     } else {
                         format!("{}/v1", trimmed)
                     };
-                    let overridden: Option<std::sync::Arc<dyn claurst_api::LlmProvider>> =
+                    let overridden: Option<std::sync::Arc<dyn jet_api::LlmProvider>> =
                         match provider_id_str.as_str() {
                             "ollama" => Some(std::sync::Arc::new(
                                 openai_compat_providers::ollama().with_base_url(base_url),
@@ -1104,33 +1104,33 @@ pub async fn run_query_loop(
                         caps.tool_calling = model_entry.tool_calling;
                         caps.thinking = model_entry.reasoning;
                     }
-                    let provider_tools: Vec<claurst_core::types::ToolDefinition> =
+                    let provider_tools: Vec<jet_core::types::ToolDefinition> =
                         if caps.tool_calling {
                             tools.iter().map(|t| t.to_definition()).collect()
                         } else {
                             Vec::new()
                         };
-                    let provider_messages: Vec<claurst_core::types::Message> = messages
+                    let provider_messages: Vec<jet_core::types::Message> = messages
                         .iter()
                         .map(|msg| {
                             let mut msg = msg.clone();
-                            if let claurst_core::types::MessageContent::Blocks(ref mut blocks) =
+                            if let jet_core::types::MessageContent::Blocks(ref mut blocks) =
                                 msg.content
                             {
                                 for block in blocks.iter_mut() {
                                     match block {
-                                        claurst_core::types::ContentBlock::Image { .. }
+                                        jet_core::types::ContentBlock::Image { .. }
                                             if !caps.image_input =>
                                         {
-                                            *block = claurst_core::types::ContentBlock::Text {
+                                            *block = jet_core::types::ContentBlock::Text {
                                                 text: "[Image not supported by this model]"
                                                     .to_string(),
                                             };
                                         }
-                                        claurst_core::types::ContentBlock::Document { .. }
+                                        jet_core::types::ContentBlock::Document { .. }
                                             if !caps.pdf_input =>
                                         {
-                                            *block = claurst_core::types::ContentBlock::Text {
+                                            *block = jet_core::types::ContentBlock::Text {
                                                 text: "[PDF not supported by this model]"
                                                     .to_string(),
                                             };
@@ -1143,7 +1143,7 @@ pub async fn run_query_loop(
                         })
                         .collect();
 
-                    let provider_request = claurst_api::ProviderRequest {
+                    let provider_request = jet_api::ProviderRequest {
                         model: model_id_str.to_owned(),
                         messages: provider_messages,
                         system_prompt: Some(system_for_provider.clone()),
@@ -1155,7 +1155,7 @@ pub async fn run_query_loop(
                         stop_sequences: vec![],
                         thinking: if caps.thinking {
                             effective_thinking_budget
-                                .map(|b| claurst_api::ThinkingConfig::enabled(b))
+                                .map(|b| jet_api::ThinkingConfig::enabled(b))
                         } else {
                             None
                         },
@@ -1173,7 +1173,7 @@ pub async fn run_query_loop(
                         Ok(s) => s,
                         Err(e) => {
                             error!(provider = %provider_id_str, error = %e, "Provider stream failed");
-                            return QueryOutcome::Error(claurst_core::error::ClaudeError::Api(
+                            return QueryOutcome::Error(jet_core::error::ClaudeError::Api(
                                 e.to_string(),
                             ));
                         }
@@ -1223,36 +1223,36 @@ pub async fn run_query_loop(
 
                                         // Accumulate response data.
                                         match &evt {
-                                            claurst_api::StreamEvent::MessageStart { id, usage: u, .. } => {
+                                            jet_api::StreamEvent::MessageStart { id, usage: u, .. } => {
                                                 msg_id = id.clone();
                                                 usage.input_tokens = u.input_tokens;
                                                 usage.cache_read_input_tokens = u.cache_read_input_tokens;
                                                 usage.cache_creation_input_tokens = u.cache_creation_input_tokens;
                                             }
-                                            claurst_api::StreamEvent::ContentBlockStart { index, content_block } => {
+                                            jet_api::StreamEvent::ContentBlockStart { index, content_block } => {
                                                 if let ContentBlock::ToolUse { id, name, .. } = content_block {
                                                     tool_call_blocks.insert(*index, (id.clone(), name.clone(), String::new()));
                                                 }
                                             }
-                                            claurst_api::StreamEvent::TextDelta { text, .. } => {
+                                            jet_api::StreamEvent::TextDelta { text, .. } => {
                                                 text_chunks.push(text.clone());
                                             }
-                                            claurst_api::StreamEvent::InputJsonDelta { index, partial_json } => {
+                                            jet_api::StreamEvent::InputJsonDelta { index, partial_json } => {
                                                 if let Some((_, _, buf)) = tool_call_blocks.get_mut(index) {
                                                     buf.push_str(partial_json);
                                                 }
                                             }
-                                            claurst_api::StreamEvent::MessageDelta { stop_reason, usage: u } => {
+                                            jet_api::StreamEvent::MessageDelta { stop_reason, usage: u } => {
                                                 stop_str = match stop_reason {
-                                                    Some(claurst_api::provider_types::StopReason::ToolUse) => "tool_use",
-                                                    Some(claurst_api::provider_types::StopReason::MaxTokens) => "max_tokens",
+                                                    Some(jet_api::provider_types::StopReason::ToolUse) => "tool_use",
+                                                    Some(jet_api::provider_types::StopReason::MaxTokens) => "max_tokens",
                                                     _ => "end_turn",
                                                 }.to_string();
                                                 if let Some(u) = u {
                                                     usage.output_tokens = u.output_tokens;
                                                 }
                                             }
-                                            claurst_api::StreamEvent::MessageStop => break,
+                                            jet_api::StreamEvent::MessageStop => break,
                                             _ => {}
                                         }
                                     }
@@ -1297,8 +1297,8 @@ pub async fn run_query_loop(
                     }
 
                     let assistant_msg = Message {
-                        role: claurst_core::types::Role::Assistant,
-                        content: claurst_core::types::MessageContent::Blocks(
+                        role: jet_core::types::Role::Assistant,
+                        content: jet_core::types::MessageContent::Blocks(
                             content_blocks.clone(),
                         ),
                         uuid: Some(msg_id),
@@ -1370,15 +1370,15 @@ pub async fn run_query_loop(
                             }
                             tool_results.push(ContentBlock::ToolResult {
                                 tool_use_id: tool_id,
-                                content: claurst_core::types::ToolResultContent::Text(
+                                content: jet_core::types::ToolResultContent::Text(
                                     result.content,
                                 ),
                                 is_error: Some(result.is_error),
                             });
                         }
                         messages.push(Message {
-                            role: claurst_core::types::Role::User,
-                            content: claurst_core::types::MessageContent::Blocks(tool_results),
+                            role: jet_core::types::Role::User,
+                            content: jet_core::types::MessageContent::Blocks(tool_results),
                             uuid: None,
                             cost: None,
                         });
@@ -1394,15 +1394,15 @@ pub async fn run_query_loop(
                     // available.  Return a clear error instead of silently falling
                     // through to the Anthropic client.
                     let hint = match provider_id_str.as_str() {
-                        "google" => "Set GOOGLE_API_KEY or run `claurst auth login --provider google`.",
-                        "openai" => "Set OPENAI_API_KEY or run `claurst auth login --provider openai`.",
+                        "google" => "Set GOOGLE_API_KEY or run `jet auth login --provider google`.",
+                        "openai" => "Set OPENAI_API_KEY or run `jet auth login --provider openai`.",
                         "groq" => "Set GROQ_API_KEY.",
                         "mistral" => "Set MISTRAL_API_KEY.",
                         "deepseek" => "Set DEEPSEEK_API_KEY.",
                         "xai" => "Set XAI_API_KEY.",
                         "github-copilot" => "Reconnect GitHub Copilot via /connect, or set GITHUB_TOKEN.",
                         "cohere" => "Set COHERE_API_KEY.",
-                        _ => "Set the appropriate API key environment variable or use `claurst auth login`.",
+                        _ => "Set the appropriate API key environment variable or use `jet auth login`.",
                     };
                     error!(
                         provider = %provider_id_str,
@@ -1599,9 +1599,9 @@ pub async fn run_query_loop(
         // compact / context-collapse instead. This fires on every streaming turn
         // so it can act before a prompt-too-long error is returned by the API.
         //
-        // Feature gate check: CLAURST_FEATURE_REACTIVE_COMPACT=1
+        // Feature gate check: jet_FEATURE_REACTIVE_COMPACT=1
         let reactive_compact_enabled =
-            claurst_core::feature_gates::is_feature_enabled("reactive_compact");
+            jet_core::feature_gates::is_feature_enabled("reactive_compact");
 
         if reactive_compact_enabled {
             // Reactive path: emergency collapse takes priority over normal compact.
@@ -1646,7 +1646,7 @@ pub async fn run_query_loop(
                             "Reactive compact complete"
                         );
                     }
-                    Err(claurst_core::error::ClaudeError::Cancelled) => {
+                    Err(jet_core::error::ClaudeError::Cancelled) => {
                         warn!("Reactive compact was cancelled");
                     }
                     Err(e) => {
@@ -1686,7 +1686,7 @@ pub async fn run_query_loop(
         // Helper closure for firing the Stop hook.
         macro_rules! fire_stop_hook {
             ($msg:expr) => {{
-                let stop_ctx = claurst_core::hooks::HookContext {
+                let stop_ctx = jet_core::hooks::HookContext {
                     event: "Stop".to_string(),
                     tool_name: None,
                     tool_input: None,
@@ -1694,9 +1694,9 @@ pub async fn run_query_loop(
                     is_error: None,
                     session_id: Some(tool_ctx.session_id.clone()),
                 };
-                claurst_core::hooks::run_hooks(
+                jet_core::hooks::run_hooks(
                     &tool_ctx.config.hooks,
-                    claurst_core::config::HookEvent::Stop,
+                    jet_core::config::HookEvent::Stop,
                     &stop_ctx,
                     &tool_ctx.working_dir,
                 )
@@ -1728,8 +1728,8 @@ pub async fn run_query_loop(
                     // requiring an Arc in the existing run_query_loop signature.
                     if let Ok(api_key) = std::env::var("ANTHROPIC_API_KEY") {
                         if !api_key.is_empty() {
-                            if let Ok(sm_client) = claurst_api::AnthropicClient::new(
-                                claurst_api::client::ClientConfig {
+                            if let Ok(sm_client) = jet_api::AnthropicClient::new(
+                                jet_api::client::ClientConfig {
                                     api_key,
                                     ..Default::default()
                                 },
@@ -1744,7 +1744,7 @@ pub async fn run_query_loop(
                                     {
                                         Ok(memories) if !memories.is_empty() => {
                                             let target = working_dir_clone
-                                                .join(".claurst")
+                                                .join(".jet")
                                                 .join("AGENTS.md");
                                             if let Err(e) =
                                                 session_memory::SessionMemoryExtractor::persist(
@@ -1778,9 +1778,9 @@ pub async fn run_query_loop(
                 // the spawn doesn't call run_query_loop recursively from within
                 // its own future (which would make the future !Send).
                 {
-                    let memory_dir = dirs::home_dir().map(|h| h.join(".claurst").join("memory"));
+                    let memory_dir = dirs::home_dir().map(|h| h.join(".jet").join("memory"));
                     let conversations_dir =
-                        dirs::home_dir().map(|h| h.join(".claurst").join("conversations"));
+                        dirs::home_dir().map(|h| h.join(".jet").join("conversations"));
                     if let (Some(mem), Some(conv)) = (memory_dir, conversations_dir) {
                         let dreamer = crate::auto_dream::AutoDream::new(mem, conv);
                         if let Ok(Some(task)) = dreamer.maybe_trigger().await {
@@ -1800,7 +1800,7 @@ pub async fn run_query_loop(
                             let ctx_for_dream = tool_ctx.clone();
                             tokio::spawn(async move {
                                 let agent = crate::agent_tool::AgentTool;
-                                let _result = claurst_tools::Tool::execute(
+                                let _result = jet_tools::Tool::execute(
                                     &agent,
                                     agent_input,
                                     &ctx_for_dream,
@@ -1906,7 +1906,7 @@ pub async fn run_query_loop(
                         }
 
                         let hooks = &tool_ctx.config.hooks;
-                        let hook_ctx = claurst_core::hooks::HookContext {
+                        let hook_ctx = jet_core::hooks::HookContext {
                             event: "PreToolUse".to_string(),
                             tool_name: Some(name.clone()),
                             tool_input: Some(input.clone()),
@@ -1914,31 +1914,31 @@ pub async fn run_query_loop(
                             is_error: None,
                             session_id: Some(tool_ctx.session_id.clone()),
                         };
-                        let pre_outcome = claurst_core::hooks::run_hooks(
+                        let pre_outcome = jet_core::hooks::run_hooks(
                             hooks,
-                            claurst_core::config::HookEvent::PreToolUse,
+                            jet_core::config::HookEvent::PreToolUse,
                             &hook_ctx,
                             &tool_ctx.working_dir,
                         )
                         .await;
 
                         let plugin_pre_outcome =
-                            claurst_plugins::run_global_pre_tool_hook(&name, &input);
+                            jet_plugins::run_global_pre_tool_hook(&name, &input);
 
-                        let blocked_result = if let claurst_core::hooks::HookOutcome::Blocked(
+                        let blocked_result = if let jet_core::hooks::HookOutcome::Blocked(
                             reason,
                         ) = pre_outcome
                         {
                             warn!(tool = %name, reason = %reason, "PreToolUse hook blocked execution");
-                            Some(claurst_tools::ToolResult::error(format!(
+                            Some(jet_tools::ToolResult::error(format!(
                                 "Blocked by hook: {}",
                                 reason
                             )))
-                        } else if let claurst_plugins::HookOutcome::Deny(reason) =
+                        } else if let jet_plugins::HookOutcome::Deny(reason) =
                             plugin_pre_outcome
                         {
                             warn!(tool = %name, reason = %reason, "Plugin PreToolUse hook blocked execution");
-                            Some(claurst_tools::ToolResult::error(format!(
+                            Some(jet_tools::ToolResult::error(format!(
                                 "Blocked by plugin hook: {}",
                                 reason
                             )))
@@ -1982,7 +1982,7 @@ pub async fn run_query_loop(
                 let mut result_blocks: Vec<ContentBlock> = Vec::with_capacity(prepared.len());
                 for (p, result) in prepared.iter().zip(exec_results.into_iter()) {
                     let hooks = &tool_ctx.config.hooks;
-                    let post_ctx = claurst_core::hooks::HookContext {
+                    let post_ctx = jet_core::hooks::HookContext {
                         event: "PostToolUse".to_string(),
                         tool_name: Some(p.name.clone()),
                         tool_input: Some(p.input.clone()),
@@ -1990,15 +1990,15 @@ pub async fn run_query_loop(
                         is_error: Some(result.is_error),
                         session_id: Some(tool_ctx.session_id.clone()),
                     };
-                    claurst_core::hooks::run_hooks(
+                    jet_core::hooks::run_hooks(
                         hooks,
-                        claurst_core::config::HookEvent::PostToolUse,
+                        jet_core::config::HookEvent::PostToolUse,
                         &post_ctx,
                         &tool_ctx.working_dir,
                     )
                     .await;
 
-                    claurst_plugins::run_global_post_tool_hook(
+                    jet_plugins::run_global_post_tool_hook(
                         &p.name,
                         &p.input,
                         &result.content,
@@ -2085,7 +2085,7 @@ async fn execute_tool(
 /// Load persisted todos for `session_id` and return a nudge string if any are
 /// incomplete (status != "completed"). Returns empty string otherwise.
 fn build_todo_nudge(session_id: &str) -> String {
-    let todos = claurst_tools::todo_write::load_todos(session_id);
+    let todos = jet_tools::todo_write::load_todos(session_id);
     let incomplete_count = todos
         .iter()
         .filter(|t| t["status"].as_str().map_or(true, |s| s != "completed"))
@@ -2104,7 +2104,7 @@ fn build_todo_nudge(session_id: &str) -> String {
 
 /// Build the system prompt from config.
 ///
-/// Delegates to `claurst_core::system_prompt::build_system_prompt` so that all
+/// Delegates to `jet_core::system_prompt::build_system_prompt` so that all
 /// default content (capabilities, safety guidelines, dynamic-boundary marker,
 /// etc.) is assembled in one place.  The `QueryConfig` fields map directly to
 /// `SystemPromptOptions`:
@@ -2112,7 +2112,7 @@ fn build_todo_nudge(session_id: &str) -> String {
 /// - `system_prompt`        → `custom_system_prompt` (added to cacheable block)
 /// - `append_system_prompt` → `append_system_prompt` (added after boundary)
 fn build_system_prompt(config: &QueryConfig) -> SystemPrompt {
-    use claurst_core::system_prompt::SystemPromptOptions;
+    use jet_core::system_prompt::SystemPromptOptions;
 
     let opts = SystemPromptOptions {
         custom_system_prompt: config.system_prompt.clone(),
@@ -2128,7 +2128,7 @@ fn build_system_prompt(config: &QueryConfig) -> SystemPrompt {
         ..Default::default()
     };
 
-    let text = claurst_core::system_prompt::build_system_prompt(&opts);
+    let text = jet_core::system_prompt::build_system_prompt(&opts);
     SystemPrompt::Text(text)
 }
 
@@ -2140,10 +2140,10 @@ fn build_system_prompt(config: &QueryConfig) -> SystemPrompt {
 /// equivalent `AnthropicStreamEvent` so that the TUI stream consumer sees a
 /// single, consistent event type regardless of which provider produced it.
 fn map_to_anthropic_event(
-    evt: &claurst_api::StreamEvent,
-) -> Option<claurst_api::AnthropicStreamEvent> {
-    use claurst_api::streaming::{AnthropicStreamEvent, ContentDelta};
-    use claurst_api::StreamEvent;
+    evt: &jet_api::StreamEvent,
+) -> Option<jet_api::AnthropicStreamEvent> {
+    use jet_api::streaming::{AnthropicStreamEvent, ContentDelta};
+    use jet_api::StreamEvent;
 
     match evt {
         StreamEvent::MessageStart { id, model, usage } => {
@@ -2204,16 +2204,16 @@ fn map_to_anthropic_event(
             // Convert the unified StopReason to the string form used by
             // AnthropicStreamEvent::MessageDelta.
             let stop_reason_str = stop_reason.as_ref().map(|r| match r {
-                claurst_api::provider_types::StopReason::ToolUse => "tool_use".to_string(),
-                claurst_api::provider_types::StopReason::MaxTokens => "max_tokens".to_string(),
-                claurst_api::provider_types::StopReason::StopSequence => {
+                jet_api::provider_types::StopReason::ToolUse => "tool_use".to_string(),
+                jet_api::provider_types::StopReason::MaxTokens => "max_tokens".to_string(),
+                jet_api::provider_types::StopReason::StopSequence => {
                     "stop_sequence".to_string()
                 }
-                claurst_api::provider_types::StopReason::EndTurn => "end_turn".to_string(),
-                claurst_api::provider_types::StopReason::ContentFiltered => {
+                jet_api::provider_types::StopReason::EndTurn => "end_turn".to_string(),
+                jet_api::provider_types::StopReason::ContentFiltered => {
                     "content_filtered".to_string()
                 }
-                claurst_api::provider_types::StopReason::Other(s) => s.clone(),
+                jet_api::provider_types::StopReason::Other(s) => s.clone(),
             });
             Some(AnthropicStreamEvent::MessageDelta {
                 stop_reason: stop_reason_str,
@@ -2238,7 +2238,7 @@ fn map_to_anthropic_event(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use claurst_api::SystemPrompt;
+    use jet_api::SystemPrompt;
 
     fn make_config(sys: Option<&str>, append: Option<&str>) -> QueryConfig {
         QueryConfig {
@@ -2247,7 +2247,7 @@ mod tests {
             max_turns: 10,
             system_prompt: sys.map(String::from),
             append_system_prompt: append.map(String::from),
-            output_style: claurst_core::system_prompt::OutputStyle::Default,
+            output_style: jet_core::system_prompt::OutputStyle::Default,
             output_style_prompt: None,
             working_directory: None,
             thinking_budget: None,
@@ -2271,17 +2271,17 @@ mod tests {
     #[test]
     fn test_system_prompt_default_when_empty() {
         // The default prompt (no custom system prompt set) should include the
-        // Claurst attribution and standard sections.
+        // jet attribution and standard sections.
         let cfg = make_config(None, None);
         let prompt = build_system_prompt(&cfg);
         if let SystemPrompt::Text(text) = prompt {
             assert!(
-                text.contains("Claurst") || text.contains("Claude agent"),
+                text.contains("jet") || text.contains("Claude agent"),
                 "Default prompt should contain attribution: {}",
                 text
             );
             assert!(
-                text.contains(claurst_core::system_prompt::SYSTEM_PROMPT_DYNAMIC_BOUNDARY),
+                text.contains(jet_core::system_prompt::SYSTEM_PROMPT_DYNAMIC_BOUNDARY),
                 "Default prompt must contain the dynamic boundary marker"
             );
         } else {
@@ -2301,7 +2301,7 @@ mod tests {
                 "Custom prompt text should appear in the output"
             );
             assert!(
-                text.contains("Claurst") || text.contains("Claude agent"),
+                text.contains("jet") || text.contains("Claude agent"),
                 "Default attribution should still be present"
             );
         } else {
@@ -2319,7 +2319,7 @@ mod tests {
             assert!(text.contains("Additional context."));
             // append_system_prompt appears after the boundary
             let boundary_pos = text
-                .find(claurst_core::system_prompt::SYSTEM_PROMPT_DYNAMIC_BOUNDARY)
+                .find(jet_core::system_prompt::SYSTEM_PROMPT_DYNAMIC_BOUNDARY)
                 .expect("boundary must exist");
             let append_pos = text.find("Additional context.").unwrap();
             assert!(
@@ -2343,7 +2343,7 @@ mod tests {
                 "Appended text must appear in the prompt"
             );
             let boundary_pos = text
-                .find(claurst_core::system_prompt::SYSTEM_PROMPT_DYNAMIC_BOUNDARY)
+                .find(jet_core::system_prompt::SYSTEM_PROMPT_DYNAMIC_BOUNDARY)
                 .expect("boundary must exist");
             let append_pos = text.find("Appended text.").unwrap();
             assert!(
@@ -2387,7 +2387,7 @@ mod tests {
         let s = format!("{:?}", outcome);
         assert!(s.contains("Cancelled"));
 
-        let err_outcome = QueryOutcome::Error(claurst_core::error::ClaudeError::RateLimit);
+        let err_outcome = QueryOutcome::Error(jet_core::error::ClaudeError::RateLimit);
         let s2 = format!("{:?}", err_outcome);
         assert!(s2.contains("Error"));
     }
@@ -2397,7 +2397,7 @@ mod tests {
         let options = build_provider_options(
             "google",
             "gemini-3-flash-preview",
-            Some(claurst_core::effort::EffortLevel::High),
+            Some(jet_core::effort::EffortLevel::High),
             None,
         );
         assert_eq!(
@@ -2415,7 +2415,7 @@ mod tests {
         let options = build_provider_options(
             "openrouter",
             "gpt-5.4",
-            Some(claurst_core::effort::EffortLevel::Medium),
+            Some(jet_core::effort::EffortLevel::Medium),
             None,
         );
         assert_eq!(options["reasoningEffort"], serde_json::json!("medium"));
@@ -2428,7 +2428,7 @@ mod tests {
         let options = build_provider_options(
             "amazon-bedrock",
             "anthropic.claude-sonnet-4-6-v1",
-            Some(claurst_core::effort::EffortLevel::High),
+            Some(jet_core::effort::EffortLevel::High),
             Some(10_000),
         );
         assert_eq!(
@@ -2455,7 +2455,7 @@ impl StreamHandler for ChannelStreamHandler {
 
 /// Run a single (non-agentic) query – no tool loop, just one API call.
 pub async fn run_single_query(
-    client: &claurst_api::AnthropicClient,
+    client: &jet_api::AnthropicClient,
     messages: Vec<Message>,
     config: &QueryConfig,
 ) -> Result<Message, ClaudeError> {
@@ -2467,7 +2467,7 @@ pub async fn run_single_query(
         .system(system)
         .build();
 
-    let handler: Arc<dyn StreamHandler> = Arc::new(claurst_api::streaming::NullStreamHandler);
+    let handler: Arc<dyn StreamHandler> = Arc::new(jet_api::streaming::NullStreamHandler);
 
     let mut rx = client.create_message_stream(request, handler).await?;
     let mut acc = StreamAccumulator::new();

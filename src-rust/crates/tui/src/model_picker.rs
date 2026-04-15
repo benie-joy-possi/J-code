@@ -8,7 +8,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
-use crate::overlays::{centered_rect, modal_search_line, CLAURST_PANEL_BG};
+use crate::overlays::{centered_rect, modal_search_line, jet_PANEL_BG};
 
 // ---------------------------------------------------------------------------
 // Effort level
@@ -256,7 +256,7 @@ fn model_entry(id: &str, name: &str, desc: &str) -> ModelEntry {
 /// experience before the fetch finishes.
 pub fn models_for_provider_from_registry(
     provider_id: &str,
-    registry: &claurst_api::ModelRegistry,
+    registry: &jet_api::ModelRegistry,
 ) -> Vec<ModelEntry> {
     let entries = registry.list_by_provider(provider_id);
     if !entries.is_empty() {
@@ -736,7 +736,7 @@ impl ModelPickerState {
     /// On success, models are sorted newest-first (by `created_at` descending).
     /// On any error, returns `default_models()` as a fallback so the picker is
     /// never left empty.
-    pub async fn fetch_models(client: &claurst_api::AnthropicClient) -> Vec<ModelEntry> {
+    pub async fn fetch_models(client: &jet_api::AnthropicClient) -> Vec<ModelEntry> {
         match client.fetch_available_models().await {
             Ok(available) => {
                 if available.is_empty() {
@@ -859,7 +859,7 @@ pub fn render_model_picker(state: &ModelPickerState, area: Rect, buf: &mut Buffe
 
     let _pink = Color::Rgb(233, 30, 99);
     let dim = Color::Rgb(90, 90, 90);
-    let dialog_bg = CLAURST_PANEL_BG;
+    let dialog_bg = jet_PANEL_BG;
     let highlight_bg = Color::Rgb(233, 30, 99);
     let highlight_fg = Color::White;
 

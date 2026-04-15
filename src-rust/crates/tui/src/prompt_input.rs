@@ -2971,7 +2971,7 @@ pub fn input_height(state: &PromptInputState) -> u16 {
     }
 }
 
-/// Render the prompt input widget in the same low-chrome style as Claurst:
+/// Render the prompt input widget in the same low-chrome style as jet:
 /// multi-line input rows (one per logical line in the text) plus an accent
 /// underline. Suggestions are rendered by the footer, not as a boxed dropdown
 /// here.

@@ -3,8 +3,8 @@
 
 use crate::{session_shell_state, PermissionLevel, ShellState, Tool, ToolContext, ToolResult};
 use async_trait::async_trait;
-use claurst_core::bash_classifier::{classify_bash_command, BashRiskLevel};
-use claurst_core::tasks::{global_registry, BackgroundTask};
+use jet_core::bash_classifier::{classify_bash_command, BashRiskLevel};
+use jet_core::tasks::{global_registry, BackgroundTask};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -218,7 +218,7 @@ async fn run_in_background(
                             let code = status.code().unwrap_or(-1);
                             global_registry().update_status(
                                 &task_id_clone,
-                                claurst_core::tasks::TaskStatus::Failed(format!(
+                                jet_core::tasks::TaskStatus::Failed(format!(
                                     "exit code {}",
                                     code
                                 )),
@@ -227,7 +227,7 @@ async fn run_in_background(
                         Err(e) => {
                             global_registry().update_status(
                                 &task_id_clone,
-                                claurst_core::tasks::TaskStatus::Failed(e.to_string()),
+                                jet_core::tasks::TaskStatus::Failed(e.to_string()),
                             );
                         }
                     }
@@ -235,7 +235,7 @@ async fn run_in_background(
                 Err(e) => {
                     global_registry().update_status(
                         &task_id_clone,
-                        claurst_core::tasks::TaskStatus::Failed(e.to_string()),
+                        jet_core::tasks::TaskStatus::Failed(e.to_string()),
                     );
                 }
             }
@@ -245,7 +245,7 @@ async fn run_in_background(
         if result.is_err() {
             global_registry().update_status(
                 &task_id_clone,
-                claurst_core::tasks::TaskStatus::Failed(format!(
+                jet_core::tasks::TaskStatus::Failed(format!(
                     "timed out after {}ms",
                     timeout_ms
                 )),
@@ -268,17 +268,17 @@ async fn run_in_background(
                         Some(t)
                             if matches!(
                                 t.status,
-                                claurst_core::tasks::TaskStatus::Completed
-                                    | claurst_core::tasks::TaskStatus::Failed(_)
-                                    | claurst_core::tasks::TaskStatus::Cancelled
+                                jet_core::tasks::TaskStatus::Completed
+                                    | jet_core::tasks::TaskStatus::Failed(_)
+                                    | jet_core::tasks::TaskStatus::Cancelled
                             ) =>
                         {
                             let exit_info = match &t.status {
-                                claurst_core::tasks::TaskStatus::Completed => "exit 0".to_string(),
-                                claurst_core::tasks::TaskStatus::Failed(msg) => {
+                                jet_core::tasks::TaskStatus::Completed => "exit 0".to_string(),
+                                jet_core::tasks::TaskStatus::Failed(msg) => {
                                     format!("failed: {}", msg)
                                 }
-                                claurst_core::tasks::TaskStatus::Cancelled => {
+                                jet_core::tasks::TaskStatus::Cancelled => {
                                     "cancelled".to_string()
                                 }
                                 _ => unreachable!(),
@@ -320,7 +320,7 @@ async fn run_in_background(
 #[async_trait]
 impl Tool for BashTool {
     fn name(&self) -> &str {
-        claurst_core::constants::TOOL_NAME_BASH
+        jet_core::constants::TOOL_NAME_BASH
     }
 
     fn description(&self) -> &str {

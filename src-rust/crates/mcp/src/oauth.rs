@@ -37,7 +37,7 @@ impl McpToken {
 fn token_path(server_name: &str) -> PathBuf {
     dirs::home_dir()
         .unwrap_or_default()
-        .join(".claurst/mcp-tokens")
+        .join(".jet/mcp-tokens")
         .join(format!("{}.json", server_name))
 }
 
