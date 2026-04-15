@@ -70,7 +70,7 @@ pub fn get_dynamic_config<T: DeserializeOwned>(name: &str, default: T) -> T {
 // Bare / simple mode
 // ---------------------------------------------------------------------------
 
-/// Return `true` when JET should run in "bare" (minimal) mode.
+/// Return `true` when Claurst should run in "bare" (minimal) mode.
 ///
 /// Bare mode skips LSP, plugin, and MCP startup for a faster, lighter
 /// experience.  It is enabled by either:
@@ -107,7 +107,10 @@ pub fn is_env_truthy(val: Option<&str>) -> bool {
 pub fn is_env_defined_falsy(val: Option<&str>) -> bool {
     match val {
         Some(v) => {
-            matches!(v.to_ascii_lowercase().as_str(), "0" | "false" | "no" | "off")
+            matches!(
+                v.to_ascii_lowercase().as_str(),
+                "0" | "false" | "no" | "off"
+            )
         }
         None => false,
     }

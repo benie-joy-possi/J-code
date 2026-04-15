@@ -3,12 +3,12 @@
 //! Computes an xxHash64 fingerprint of the serialised request body and embeds
 //! it in the x-anthropic-billing-header.
 //! The server uses the hash to verify the request originated from a legitimate
-//! JET client and to gate features like fast-mode.
+//! Claurst client and to gate features like fast-mode.
 
 use xxhash_rust::xxh64::xxh64;
 
 const CCH_SEED: u64 = 0x6E52_736A_C806_831E;
-const CCH_MASK: u64 = 0xF_FFFF;   // 5 hex digits
+const CCH_MASK: u64 = 0xF_FFFF; // 5 hex digits
 const CCH_PLACEHOLDER: &str = "cch=00000";
 
 /// Compute the 5-hex-digit CCH hash for `body`.

@@ -1,7 +1,7 @@
-//! Agent Client Protocol (ACP) server for JET.
+//! Agent Client Protocol (ACP) server for Claurst.
 //!
 //! Implements JSON-RPC 2.0 over stdio so that editors (Zed, VS Code, …) can
-//! use JET as an AI back-end without launching a full TUI session.
+//! use Claurst as an AI back-end without launching a full TUI session.
 //!
 //! # Wire format
 //! - Each message is a single UTF-8 line terminated with `\n`.
@@ -125,10 +125,7 @@ pub async fn run_acp_server() -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn write_line(
-    stdout: &mut tokio::io::Stdout,
-    value: &impl Serialize,
-) -> anyhow::Result<()> {
+async fn write_line(stdout: &mut tokio::io::Stdout, value: &impl Serialize) -> anyhow::Result<()> {
     let mut line = serde_json::to_string(value)?;
     line.push('\n');
     stdout.write_all(line.as_bytes()).await?;
@@ -182,10 +179,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
 
         // ------------------------------------------------------------------
         "session/create" => {
-            let session_id = format!(
-                "acp-{}",
-                chrono::Utc::now().timestamp_millis()
-            );
+            let session_id = format!("acp-{}", chrono::Utc::now().timestamp_millis());
             JsonRpcResponse::success(
                 id,
                 serde_json::json!({
@@ -238,11 +232,7 @@ async fn handle_request(req: JsonRpcRequest) -> JsonRpcResponse {
         }
 
         // ------------------------------------------------------------------
-        other => JsonRpcResponse::error(
-            id,
-            -32601,
-            format!("Method not found: {}", other),
-        ),
+        other => JsonRpcResponse::error(id, -32601, format!("Method not found: {}", other)),
     }
 }
 

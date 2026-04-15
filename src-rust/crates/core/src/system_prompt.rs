@@ -5,8 +5,8 @@
 //! volatile, session-specific sections follow it.
 
 use serde::{Deserialize, Serialize};
-use std::sync::{Mutex, OnceLock};
 use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 // ---------------------------------------------------------------------------
 // Dynamic boundary marker
@@ -47,7 +47,11 @@ pub struct SystemPromptSection {
 impl SystemPromptSection {
     /// Create a memoizable (cacheable) section.
     pub fn cached(tag: &'static str, content: impl Into<String>) -> Self {
-        Self { tag, content: Some(content.into()), cache_break: false }
+        Self {
+            tag,
+            content: Some(content.into()),
+            cache_break: false,
+        }
     }
 
     /// Create a volatile section that re-evaluates every turn.
@@ -97,9 +101,9 @@ impl OutputStyle {
                 "Be maximally concise. Skip preamble, summaries, and filler. \
                 Lead with the answer. One sentence is better than three.",
             ),
-            OutputStyle::Formal => Some(
-                "Maintain a formal, professional tone. Use precise technical language.",
-            ),
+            OutputStyle::Formal => {
+                Some("Maintain a formal, professional tone. Use precise technical language.")
+            }
             OutputStyle::Casual => Some("Use a casual, conversational tone."),
             OutputStyle::Default => None,
         }
@@ -122,7 +126,7 @@ impl OutputStyle {
 // System prompt prefix variants
 // ---------------------------------------------------------------------------
 
-/// Which entrypoint context JET is running in.
+/// Which entrypoint context Claurst is running in.
 /// Determines the opening attribution line of the system prompt.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SystemPromptPrefix {
@@ -144,7 +148,7 @@ pub enum SystemPromptPrefix {
 impl SystemPromptPrefix {
     /// Detect from environment variables, mirroring `getCLISyspromptPrefix`.
     pub fn detect(is_non_interactive: bool, has_append_system_prompt: bool) -> Self {
-        // Vertex: always uses the default "JET" prefix.
+        // Vertex: always uses the default "Claurst" prefix.
         if std::env::var("ANTHROPIC_VERTEX_PROJECT_ID").is_ok()
             || std::env::var("CLOUD_ML_PROJECT_ID").is_ok()
         {
@@ -174,15 +178,13 @@ impl SystemPromptPrefix {
     pub fn attribution_text(self) -> &'static str {
         match self {
             Self::Cli | Self::Vertex | Self::Bedrock | Self::Remote => {
-                "You are JET, Anthropic's official CLI for Claude."
+                "You are Claurst, Anthropic's official CLI for Claude."
             }
             Self::SdkPreset => {
-                "You are JET, Anthropic's official CLI for Claude, \
+                "You are Claurst, Anthropic's official CLI for Claude, \
                 running within the Claude Agent SDK."
             }
-            Self::Sdk => {
-                "You are a Claude agent, built on Anthropic's Claude Agent SDK."
-            }
+            Self::Sdk => "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
         }
     }
 }
@@ -240,14 +242,9 @@ pub fn build_system_prompt(opts: &SystemPromptOptions) -> String {
         }
     }
 
-    let prefix = opts
-        .prefix
-        .unwrap_or_else(|| {
-            SystemPromptPrefix::detect(
-                opts.is_non_interactive,
-                opts.has_append_system_prompt,
-            )
-        });
+    let prefix = opts.prefix.unwrap_or_else(|| {
+        SystemPromptPrefix::detect(opts.is_non_interactive, opts.has_append_system_prompt)
+    });
 
     let mut parts: Vec<String> = Vec::new();
 
@@ -315,10 +312,7 @@ pub fn build_system_prompt(opts: &SystemPromptOptions) -> String {
 
     // 12. Memory injection (from memdir)
     if !opts.memory_content.is_empty() {
-        parts.push(format!(
-            "\n<memory>\n{}\n</memory>",
-            opts.memory_content
-        ));
+        parts.push(format!("\n<memory>\n{}\n</memory>", opts.memory_content));
     }
 
     // 13. Appended system prompt (--append-system-prompt)
@@ -546,7 +540,10 @@ mod tests {
     #[test]
     fn test_default_prompt_contains_attribution() {
         let prompt = build_system_prompt(&default_opts());
-        assert!(prompt.contains("JET"), "Default prompt must contain attribution");
+        assert!(
+            prompt.contains("Claurst"),
+            "Default prompt must contain attribution"
+        );
     }
 
     #[test]

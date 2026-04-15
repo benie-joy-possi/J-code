@@ -19,7 +19,7 @@ pub struct UpdateInfo {
     pub has_update: bool,
 }
 
-/// Check for a newer version of JET in the background.
+/// Check for a newer version of Claurst in the background.
 ///
 /// Returns `Some(UpdateInfo)` when a newer release exists on GitHub.
 /// The result is cached for `CHECK_INTERVAL_HOURS` hours so repeated
@@ -64,7 +64,7 @@ pub async fn check_for_updates() -> Option<UpdateInfo> {
     // --- Network fetch -------------------------------------------------------
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
-        .user_agent(format!("JET/{}", current))
+        .user_agent(format!("Claurst/{}", current))
         .build()
         .ok()?;
 
@@ -113,9 +113,7 @@ fn update_cache_path() -> Option<std::path::PathBuf> {
 
 /// Compare two semver strings.  Returns `true` when `latest` > `current`.
 fn is_newer(latest: &str, current: &str) -> bool {
-    let parse = |v: &str| -> Vec<u32> {
-        v.split('.').filter_map(|p| p.parse().ok()).collect()
-    };
+    let parse = |v: &str| -> Vec<u32> { v.split('.').filter_map(|p| p.parse().ok()).collect() };
     let l = parse(latest);
     let c = parse(current);
     let max_len = l.len().max(c.len());
