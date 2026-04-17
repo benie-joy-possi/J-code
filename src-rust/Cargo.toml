@@ -16,9 +16,9 @@ members = [
 ]
 
 [workspace.package]
-version = "0.0.8"
+version = "0.1.0"
 edition = "2021"
-authors = ["Claurst"]
+authors = ["jet"]
 license = "GPL-3.0"
 
 [workspace.dependencies]
@@ -101,14 +101,14 @@ tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
 schemars = { version = "0.8", features = ["derive"] }
 
 # Workspace crates
-claurst-core = { path = "crates/core" }
-claurst-acp = { path = "crates/acp" }
-claurst-api = { path = "crates/api" }
-claurst-tools = { path = "crates/tools" }
-claurst-query = { path = "crates/query" }
-claurst-tui = { path = "crates/tui" }
-claurst-commands = { path = "crates/commands" }
-claurst-mcp = { path = "crates/mcp" }
-claurst-bridge = { path = "crates/bridge" }
-claurst-buddy = { path = "crates/buddy" }
-claurst-plugins = { path = "crates/plugins" }
+jet-core = { path = "crates/core" }
+jet-acp = { path = "crates/acp" }
+jet-api = { path = "crates/api" }
+jet-tools = { path = "crates/tools" }
+jet-query = { path = "crates/query" }
+jet-tui = { path = "crates/tui" }
+jet-commands = { path = "crates/commands" }
+jet-mcp = { path = "crates/mcp" }
+jet-bridge = { path = "crates/bridge" }
+jet-buddy = { path = "crates/buddy" }
+jet-plugins = { path = "crates/plugins" }

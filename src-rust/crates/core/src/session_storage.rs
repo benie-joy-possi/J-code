@@ -1,6 +1,6 @@
-// session_storage.rs — JSONL transcript persistence for Claurst.
+// session_storage.rs — JSONL transcript persistence for jet.
 //
-// File layout:  ~/.claurst/projects/{base64url(project_root)}/{session_id}.jsonl
+// File layout:  ~/.jet/projects/{base64url(project_root)}/{session_id}.jsonl
 //
 // Each line is a JSON object ("entry") whose `type` field is the discriminant.
 // The schema is kept compatible with the TypeScript `Entry` union in
@@ -128,13 +128,23 @@ pub struct TranscriptMessage {
     #[serde(default = "default_user_type")]
     pub user_type: String,
 
-    /// Version of the Claurst binary, mirrors `MACRO.VERSION`.
+    /// Version of the jet binary, mirrors `MACRO.VERSION`.
     #[serde(default)]
     pub version: String,
 
     /// Git branch at the time this message was written.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub git_branch: Option<String>,
+
+    /// Agent role in the managed-agent architecture: "manager" | "executor".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub agent_role: Option<String>,
+
+    /// Managed session ID linking manager and executor transcripts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    pub managed_session_id: Option<String>,
 
     /// Catch-all for any other fields written by the TS CLI that we don't
     /// need to inspect.
@@ -209,7 +219,7 @@ pub struct SessionSummary {
 // Path helpers
 // ---------------------------------------------------------------------------
 
-/// Returns the base projects directory: `~/.claurst/projects/`.
+/// Returns the base projects directory: `~/.jet/projects/`.
 pub fn projects_dir() -> PathBuf {
     crate::config::Settings::config_dir().join("projects")
 }
@@ -240,10 +250,7 @@ pub fn transcript_path(project_root: &Path, session_id: &str) -> PathBuf {
 ///   [`MAX_TRANSCRIPT_BYTES`] to avoid unbounded growth.
 /// * Uses `OpenOptions::append(true)` which results in an atomic positional
 ///   write on POSIX (O_APPEND) and a best-effort append on Windows.
-pub async fn write_transcript_entry(
-    path: &Path,
-    entry: &TranscriptEntry,
-) -> crate::Result<()> {
+pub async fn write_transcript_entry(path: &Path, entry: &TranscriptEntry) -> crate::Result<()> {
     // Guard: do not grow files beyond the cap.
     if let Ok(meta) = tokio::fs::metadata(path).await {
         if meta.len() >= MAX_TRANSCRIPT_BYTES {
@@ -299,8 +306,7 @@ pub async fn load_transcript(path: &Path) -> crate::Result<Vec<TranscriptEntry>>
     let raw = tokio::fs::read_to_string(path).await?;
 
     // First pass: collect tombstoned UUIDs.
-    let mut tombstoned: std::collections::HashSet<String> =
-        std::collections::HashSet::new();
+    let mut tombstoned: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for line in raw.lines() {
         let trimmed = line.trim();
@@ -308,7 +314,8 @@ pub async fn load_transcript(path: &Path) -> crate::Result<Vec<TranscriptEntry>>
             continue;
         }
         // Cheap structural check before full parse.
-        if trimmed.contains("\"type\":\"tombstone\"") || trimmed.contains("\"type\": \"tombstone\"") {
+        if trimmed.contains("\"type\":\"tombstone\"") || trimmed.contains("\"type\": \"tombstone\"")
+        {
             if let Ok(entry) = serde_json::from_str::<TranscriptEntry>(trimmed) {
                 if let TranscriptEntry::Tombstone(t) = entry {
                     tombstoned.insert(t.deleted_uuid);
@@ -383,9 +390,7 @@ pub async fn list_sessions(project_root: &Path) -> crate::Result<Vec<SessionSumm
             Ok(m) => m,
             Err(_) => continue,
         };
-        let mtime = meta
-            .modified()
-            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        let mtime = meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH);
 
         // Read the tail of the file (up to 64 KB) to extract metadata.
         let (last_prompt, title) = read_session_tail_metadata(&path).await;
@@ -449,10 +454,7 @@ async fn read_session_tail_metadata(path: &Path) -> (Option<String>, Option<Stri
 
     use tokio::io::{AsyncReadExt, AsyncSeekExt};
     let mut file = file;
-    if let Err(_) = file
-        .seek(std::io::SeekFrom::Start(offset))
-        .await
-    {
+    if let Err(_) = file.seek(std::io::SeekFrom::Start(offset)).await {
         return (None, None);
     }
     if let Err(_) = file.read_exact(&mut buf).await {
@@ -525,6 +527,8 @@ pub fn make_user_entry(
         user_type: "external".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         git_branch: None,
+        agent_role: None,
+        managed_session_id: None,
         extra: Default::default(),
     })
 }
@@ -548,6 +552,8 @@ pub fn make_assistant_entry(
         user_type: "external".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         git_branch: None,
+        agent_role: None,
+        managed_session_id: None,
         extra: Default::default(),
     })
 }
@@ -562,10 +568,26 @@ pub fn messages_from_transcript(entries: &[TranscriptEntry]) -> Vec<Message> {
     entries
         .iter()
         .filter_map(|e| match e {
-            TranscriptEntry::User(m) | TranscriptEntry::Assistant(m) => {
-                Some(m.message.clone())
-            }
+            TranscriptEntry::User(m) | TranscriptEntry::Assistant(m) => Some(m.message.clone()),
             _ => None,
+        })
+        .collect()
+}
+
+/// Filter transcript entries by agent role ("manager" or "executor").
+///
+/// Returns only User and Assistant entries whose `agent_role` matches `role`.
+pub fn filter_by_agent_role<'a>(
+    entries: &'a [TranscriptEntry],
+    role: &str,
+) -> Vec<&'a TranscriptEntry> {
+    entries
+        .iter()
+        .filter(|e| match e {
+            TranscriptEntry::User(msg) | TranscriptEntry::Assistant(msg) => {
+                msg.agent_role.as_deref() == Some(role)
+            }
+            _ => false,
         })
         .collect()
 }
@@ -577,8 +599,8 @@ pub fn messages_from_transcript(entries: &[TranscriptEntry]) -> Vec<Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use crate::types::{Message, MessageContent, Role};
+    use tempfile::tempdir;
 
     fn make_msg(role: Role) -> Message {
         Message {

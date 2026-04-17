@@ -19,7 +19,7 @@ We have a working Rust CLI with Anthropic and OpenAI support, experimental speec
 | Feature | Status | Issue |
 |---|---|---|
 | Provider trait abstraction | ✅ Done | #1 |
-| Gemini provider | 🔨 In Progress | #2 |
+| Gemini provider | ✅ Done | #2 |
 | Groq provider | ✅ Done | #3 |
 | Ollama (local) provider | ✅ Done | #4 |
 | OpenRouter provider | ✅ Done | #5 |
@@ -39,6 +39,8 @@ We have a working Rust CLI with Anthropic and OpenAI support, experimental speec
 |---|---|---|
 | `/cost` command — real-time token usage + cost | ✅ Done | Per-session and cumulative |
 | Session export (Markdown / JSON) | ✅ Done | Share your sessions |
+| Live Execution Timeline | ✅ Done | Real-time TUI visibility of agent steps |
+| Managed Agents mode | ✅ Done | Efficient reasoning loop with task-specific models |
 | Multi-agent mode | 📋 Planned | Spin up parallel agents on your machine for complex tasks |
 | Plugin system | 📋 Planned | Community-built tools (web search, git, etc.) |
 | `/benchmark` mode | 📋 Planned | Same prompt → all providers, compare side by side |

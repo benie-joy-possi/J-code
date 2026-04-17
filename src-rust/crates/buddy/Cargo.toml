@@ -1,10 +1,10 @@
 [package]
-name = "claurst-buddy"
+name = "jet-buddy"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-claurst-core = { path = "../core" }
+jet-core = { path = "../core" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }

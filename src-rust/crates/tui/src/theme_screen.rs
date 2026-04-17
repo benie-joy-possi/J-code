@@ -10,8 +10,8 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::overlays::{
-    begin_modal_frame, modal_header_line_area, render_modal_title_frame, CLAURST_ACCENT,
-    CLAURST_MUTED, CLAURST_PANEL_BG, CLAURST_TEXT,
+    begin_modal_frame, modal_header_line_area, render_modal_title_frame, jet_ACCENT,
+    JET_MUTED, jet_PANEL_BG, JET_TEXT,
 };
 
 // ---------------------------------------------------------------------------
@@ -98,7 +98,7 @@ fn builtin_themes() -> Vec<ThemeOption> {
         ThemeOption {
             name: "default".to_string(),
             label: "Default".to_string(),
-            description: "Claurst default — dark background, cyan accents".to_string(),
+            description: "jet default — dark background, cyan accents".to_string(),
             swatch: [Color::Black, Color::Cyan, Color::Green, Color::White],
         },
         ThemeOption {
@@ -116,12 +116,7 @@ fn builtin_themes() -> Vec<ThemeOption> {
             name: "light".to_string(),
             label: "Light".to_string(),
             description: "Light background with dark text".to_string(),
-            swatch: [
-                Color::White,
-                Color::Blue,
-                Color::DarkGray,
-                Color::Black,
-            ],
+            swatch: [Color::White, Color::Blue, Color::DarkGray, Color::Black],
         },
         ThemeOption {
             name: "solarized".to_string(),
@@ -173,8 +168,8 @@ fn builtin_themes() -> Vec<ThemeOption> {
             description: "Red-green color blind friendly — blue/yellow/gray palette".to_string(),
             swatch: [
                 Color::Rgb(18, 18, 18),
-                Color::Rgb(0, 122, 204),  // Blue
-                Color::Rgb(255, 180, 0),  // Gold/Yellow
+                Color::Rgb(0, 122, 204),   // Blue
+                Color::Rgb(255, 180, 0),   // Gold/Yellow
                 Color::Rgb(200, 200, 200), // Light gray
             ],
         },
@@ -198,7 +193,7 @@ pub fn render_theme_screen(frame: &mut Frame, screen: &ThemeScreen, area: Rect) 
         frame.render_widget(
             Paragraph::new(Line::from(vec![Span::styled(
                 " Preview palettes before wiring up richer theme behavior.",
-                Style::default().fg(CLAURST_MUTED),
+                Style::default().fg(JET_MUTED),
             )])),
             subtitle_area,
         );
@@ -208,9 +203,21 @@ pub fn render_theme_screen(frame: &mut Frame, screen: &ThemeScreen, area: Rect) 
 
     for (i, theme) in screen.themes.iter().enumerate() {
         let is_selected = i == screen.selected_idx;
-        let bg = if is_selected { CLAURST_ACCENT } else { CLAURST_PANEL_BG };
-        let fg = if is_selected { Color::White } else { CLAURST_TEXT };
-        let desc_fg = if is_selected { Color::Rgb(248, 220, 236) } else { CLAURST_MUTED };
+        let bg = if is_selected {
+            jet_ACCENT
+        } else {
+            jet_PANEL_BG
+        };
+        let fg = if is_selected {
+            Color::White
+        } else {
+            JET_TEXT
+        };
+        let desc_fg = if is_selected {
+            Color::Rgb(248, 220, 236)
+        } else {
+            JET_MUTED
+        };
 
         // Build the swatch using block characters with background colour
         let swatch_spans: Vec<Span> = theme
@@ -241,13 +248,15 @@ pub fn render_theme_screen(frame: &mut Frame, screen: &ThemeScreen, area: Rect) 
         lines.push(Line::from(""));
     }
     frame.render_widget(
-        Paragraph::new(lines).style(Style::default().bg(CLAURST_PANEL_BG)),
+        Paragraph::new(lines).style(Style::default().bg(jet_PANEL_BG)),
         layout.body_area,
     );
     frame.render_widget(
         Paragraph::new(Line::from(vec![Span::styled(
             " ↑↓ navigate  ·  enter apply  ·  esc cancel",
-            Style::default().fg(CLAURST_MUTED).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(JET_MUTED)
+                .add_modifier(Modifier::ITALIC),
         )])),
         layout.footer_area,
     );

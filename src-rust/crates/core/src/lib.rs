@@ -1,22 +1,18 @@
 // cc-core: Core types, error handling, configuration, settings, and constants
-// for Claurst.
+// for jet.
 //
 // All sub-modules are defined inline below.
 
 // Branded provider / model identifier newtypes.
 pub mod provider_id;
-pub use provider_id::{ProviderId, ModelId};
+pub use provider_id::{ModelId, ProviderId};
 
 // Session transcript persistence (JSONL, matches TS sessionStorage.ts schema).
 pub mod session_storage;
 
-// Session sharing — HTTP upload to a share endpoint + local text export.
-pub mod session_share;
-pub use session_share::{share_session, export_session_text};
-
 // SQLite-backed session storage (faster alternative to JSONL).
 pub mod sqlite_storage;
-pub use sqlite_storage::{SqliteSessionStore, SessionSummary};
+pub use sqlite_storage::{SessionSummary, SqliteSessionStore};
 
 // Attachment pipeline — assembles per-turn context attachments (T1-6).
 pub mod attachments;
@@ -32,16 +28,16 @@ pub use auth_store::{AuthStore, StoredCredential};
 pub mod device_code;
 
 // Utility modules ported from src/utils/
+pub mod auto_mode;
+pub mod crypto_utils;
+pub mod format_utils;
+pub mod status_notices;
 pub mod token_budget;
 pub mod truncate;
-pub mod format_utils;
-pub mod crypto_utils;
-pub mod status_notices;
-pub mod auto_mode;
 
 // Remote session sync and cloud session API (T3-1, T3-2).
-pub mod remote_session;
 pub mod cloud_session;
+pub mod remote_session;
 
 // AGENTS.md hierarchical memory loading (T4-1).
 pub mod claudemd;
@@ -63,35 +59,38 @@ pub mod mcp_templates;
 
 // IDE environment detection (VS Code, Cursor, JetBrains, …).
 pub mod ide;
-pub use ide::{IdeKind, detect_ide};
+pub use ide::{detect_ide, IdeKind};
 
 // Background update checker — compares running version against GitHub releases.
 pub mod update_check;
 pub use update_check::{check_for_updates, UpdateInfo};
 
 // Re-export commonly used types at the crate root
+pub use config::{
+    builtin_managed_agent_presets, default_agents, strip_jsonc_comments, substitute_env_vars,
+    AgentDefinition, BudgetSplitPolicy, CommandTemplate, Config, FormatterConfig,
+    ManagedAgentConfig, ManagedAgentPreset, McpServerConfig, OutputFormat, PermissionMode,
+    ProviderConfig, Settings, SkillsConfig, Theme,
+};
 pub use error::{ClaudeError, Result};
 pub use types::{
-    ContentBlock, ImageSource, DocumentSource, CitationsConfig, Message, MessageContent,
+    CitationsConfig, ContentBlock, DocumentSource, ImageSource, Message, MessageContent,
     MessageCost, Role, ToolDefinition, ToolResultContent, UsageInfo,
 };
-pub use config::{AgentDefinition, Config, CommandTemplate, FormatterConfig, McpServerConfig, OutputFormat, PermissionMode, ProviderConfig, Settings, SkillsConfig, Theme, default_agents, strip_jsonc_comments, substitute_env_vars};
 
 // Skill discovery: filesystem and git URL skill loading.
 pub mod skill_discovery;
-pub use skill_discovery::{DiscoveredSkill, discover_skills, parse_skill_file};
 pub use cost::CostTracker;
-pub use history::ConversationSession;
 pub use feature_flags::FeatureFlagManager;
-pub use snapshot::SnapshotManager;
+pub use history::ConversationSession;
 pub use permissions::{
-    AutoPermissionHandler, InteractivePermissionHandler,
-    ManagedAutoPermissionHandler, ManagedInteractivePermissionHandler,
-    PermissionAction, PermissionDecision, PermissionHandler,
-    PermissionLevel, PermissionManager, PermissionRequest,
+    format_permission_reason, AutoPermissionHandler, InteractivePermissionHandler,
+    ManagedAutoPermissionHandler, ManagedInteractivePermissionHandler, PermissionAction,
+    PermissionDecision, PermissionHandler, PermissionLevel, PermissionManager, PermissionRequest,
     PermissionRule, PermissionScope, SerializedPermissionRule,
-    format_permission_reason,
 };
+pub use skill_discovery::{discover_skills, parse_skill_file, DiscoveredSkill};
+pub use snapshot::SnapshotManager;
 
 // ---------------------------------------------------------------------------
 // error module
@@ -99,7 +98,7 @@ pub use permissions::{
 pub mod error {
     use thiserror::Error;
 
-    /// The unified error type for Claurst.
+    /// The unified error type for jet.
     #[derive(Error, Debug)]
     pub enum ClaudeError {
         #[error("API error: {0}")]
@@ -444,7 +443,10 @@ pub mod types {
         }
 
         /// Create a user message representing a `!`-prefixed local shell command with output.
-        pub fn user_local_command_output(command: impl Into<String>, output: impl Into<String>) -> Self {
+        pub fn user_local_command_output(
+            command: impl Into<String>,
+            output: impl Into<String>,
+        ) -> Self {
             Self {
                 role: Role::User,
                 content: MessageContent::Blocks(vec![ContentBlock::UserLocalCommandOutput {
@@ -625,6 +627,82 @@ pub mod config {
 
     /// Definition of a named agent with per-agent model, permissions,
     /// temperature, and system prompt.
+    pub fn api_key_env_vars_for_provider(provider_id: &str) -> &'static [&'static str] {
+        match provider_id {
+            "anthropic" => &["ANTHROPIC_API_KEY"],
+            "openai" => &["OPENAI_API_KEY"],
+            "google" | "google-vertex" => &["GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
+            "github-copilot" => &["GITHUB_TOKEN"],
+            "groq" => &["GROQ_API_KEY"],
+            "cerebras" => &["CEREBRAS_API_KEY"],
+            "sambanova" => &["SAMBANOVA_API_KEY"],
+            "deepseek" => &["DEEPSEEK_API_KEY"],
+            "mistral" => &["MISTRAL_API_KEY"],
+            "openrouter" => &["OPENROUTER_API_KEY"],
+            "togetherai" | "together-ai" => &["TOGETHER_API_KEY"],
+            "perplexity" => &["PERPLEXITY_API_KEY"],
+            "cohere" => &["COHERE_API_KEY"],
+            "xai" => &["XAI_API_KEY"],
+            "deepinfra" => &["DEEPINFRA_API_KEY"],
+            "azure" => &["AZURE_API_KEY"],
+            "gitlab" => &["GITLAB_TOKEN"],
+            "huggingface" => &["HF_TOKEN"],
+            "nvidia" => &["NVIDIA_API_KEY"],
+            "alibaba" | "qwen" => &["DASHSCOPE_API_KEY"],
+            "venice" => &["VENICE_API_KEY"],
+            "moonshot" | "moonshotai" => &["MOONSHOT_API_KEY"],
+            "zhipu" | "zhipuai" => &["ZHIPU_API_KEY"],
+            "zai" => &["ZAI_API_KEY"],
+            "siliconflow" => &["SILICONFLOW_API_KEY"],
+            "nebius" => &["NEBIUS_API_KEY"],
+            "novita" => &["NOVITA_API_KEY"],
+            "minimax" => &["MINIMAX_API_KEY"],
+            "ovhcloud" => &["OVHCLOUD_API_KEY"],
+            "scaleway" => &["SCALEWAY_API_KEY"],
+            "vultr" | "vultr-ai" => &["VULTR_API_KEY"],
+            "baseten" => &["BASETEN_API_KEY"],
+            "friendli" => &["FRIENDLI_TOKEN"],
+            "upstage" => &["UPSTAGE_API_KEY"],
+            "stepfun" => &["STEPFUN_API_KEY"],
+            "fireworks" => &["FIREWORKS_API_KEY"],
+            "cloudflare" | "cloudflare-ai-gateway" | "cloudflare-workers-ai" => {
+                &["CLOUDFLARE_API_TOKEN"]
+            }
+            "vercel" => &["AI_GATEWAY_API_KEY"],
+            "helicone" => &["HELICONE_API_KEY"],
+            "sap" | "sap-ai-core" => &["AICORE_SERVICE_KEY"],
+            _ => &[],
+        }
+    }
+
+    pub fn primary_api_key_env_var_for_provider(provider_id: &str) -> Option<&'static str> {
+        api_key_env_vars_for_provider(provider_id).first().copied()
+    }
+
+    pub fn api_base_env_var_for_provider(provider_id: &str) -> Option<&'static str> {
+        match provider_id {
+            "anthropic" => Some("ANTHROPIC_BASE_URL"),
+            "openai" => Some("OPENAI_BASE_URL"),
+            "minimax" => Some("MINIMAX_BASE_URL"),
+            "ollama" => Some("OLLAMA_HOST"),
+            "lmstudio" | "lm-studio" => Some("LM_STUDIO_HOST"),
+            "llamacpp" | "llama-cpp" | "llama-server" => Some("LLAMA_CPP_HOST"),
+            _ => None,
+        }
+    }
+
+    pub fn default_api_base_for_provider(provider_id: &str) -> Option<&'static str> {
+        match provider_id {
+            "anthropic" => Some(crate::constants::ANTHROPIC_API_BASE),
+            "openai" => Some("https://api.openai.com"),
+            "minimax" => Some("https://api.minimax.io/anthropic"),
+            "ollama" => Some("http://localhost:11434"),
+            "lmstudio" | "lm-studio" => Some("http://localhost:1234"),
+            "llamacpp" | "llama-cpp" | "llama-server" => Some("http://localhost:8080"),
+            _ => None,
+        }
+    }
+
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct AgentDefinition {
         /// Display name / description
@@ -660,6 +738,125 @@ pub mod config {
                 color: None,
             }
         }
+    }
+
+    // ---- ManagedAgentConfig ----------------------------------------------
+
+    /// Budget allocation strategy between manager and executor agents.
+    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[serde(tag = "type", rename_all = "snake_case")]
+    pub enum BudgetSplitPolicy {
+        /// Shared pool — no split (default).
+        SharedPool,
+        /// Manager gets manager_pct% of total budget.
+        Percentage { manager_pct: u8 },
+        /// Hard USD caps per role.
+        FixedCaps { manager_usd: f64, executor_usd: f64 },
+    }
+
+    impl Default for BudgetSplitPolicy {
+        fn default() -> Self {
+            BudgetSplitPolicy::SharedPool
+        }
+    }
+
+    /// Configuration for manager-executor agent architecture.
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct ManagedAgentConfig {
+        pub enabled: bool,
+        /// "provider/model" string, e.g. "anthropic/claude-opus-4-6"
+        pub manager_model: String,
+        /// "provider/model" string, e.g. "anthropic/claude-sonnet-4-6"
+        pub executor_model: String,
+        #[serde(default = "default_executor_max_turns")]
+        pub executor_max_turns: u32,
+        #[serde(default = "default_max_concurrent_executors")]
+        pub max_concurrent_executors: u32,
+        #[serde(default)]
+        pub budget_split: BudgetSplitPolicy,
+        #[serde(default)]
+        pub total_budget_usd: Option<f64>,
+        #[serde(default)]
+        pub preset_name: Option<String>,
+        #[serde(default)]
+        pub executor_isolation: bool,
+    }
+
+    fn default_executor_max_turns() -> u32 {
+        10
+    }
+    fn default_max_concurrent_executors() -> u32 {
+        4
+    }
+
+    /// A named preset for common manager-executor configurations.
+    pub struct ManagedAgentPreset {
+        pub name: &'static str,
+        pub label: &'static str,
+        pub description: &'static str,
+        pub manager_model: &'static str,
+        pub executor_model: &'static str,
+        pub executor_max_turns: u32,
+        pub max_concurrent_executors: u32,
+    }
+
+    pub fn builtin_managed_agent_presets() -> Vec<ManagedAgentPreset> {
+        vec![
+            ManagedAgentPreset {
+                name: "anthropic-tiered",
+                label: "Anthropic Tiered",
+                description: "Opus 4.6 manages, Sonnet 4.6 executes (best quality)",
+                manager_model: "anthropic/claude-opus-4-6",
+                executor_model: "anthropic/claude-sonnet-4-6",
+                executor_max_turns: 10,
+                max_concurrent_executors: 4,
+            },
+            ManagedAgentPreset {
+                name: "anthropic-budget",
+                label: "Anthropic Budget",
+                description: "Sonnet 4.6 manages, Haiku 4.5 executes (cost-optimized)",
+                manager_model: "anthropic/claude-sonnet-4-6",
+                executor_model: "anthropic/claude-haiku-4-5-20251001",
+                executor_max_turns: 10,
+                max_concurrent_executors: 6,
+            },
+            ManagedAgentPreset {
+                name: "google-tiered",
+                label: "Google Tiered",
+                description: "Gemini 2.5 Pro manages, Flash executes",
+                manager_model: "google/gemini-2.5-pro",
+                executor_model: "google/gemini-2.5-flash",
+                executor_max_turns: 10,
+                max_concurrent_executors: 4,
+            },
+            ManagedAgentPreset {
+                name: "cross-opus-flash",
+                label: "Cross: Opus + Flash",
+                description: "Anthropic Opus manages, Google Flash executes (cheapest executors)",
+                manager_model: "anthropic/claude-opus-4-6",
+                executor_model: "google/gemini-2.5-flash",
+                executor_max_turns: 10,
+                max_concurrent_executors: 6,
+            },
+            ManagedAgentPreset {
+                name: "openai-tiered",
+                label: "OpenAI Tiered",
+                description: "o3 manages, gpt-4o executes",
+                manager_model: "openai/o3",
+                executor_model: "openai/gpt-4o",
+                executor_max_turns: 10,
+                max_concurrent_executors: 4,
+            },
+            ManagedAgentPreset {
+                name: "cross-openai-anthropic",
+                label: "Cross: OpenAI + Anthropic",
+                description: "o3 manages, Sonnet 4.6 executes",
+                manager_model: "openai/o3",
+                executor_model: "anthropic/claude-sonnet-4-6",
+                executor_max_turns: 10,
+                max_concurrent_executors: 4,
+            },
+        ]
     }
 
     // ---- ProviderConfig --------------------------------------------------
@@ -751,11 +948,9 @@ pub mod config {
         /// Skill-discovery configuration (copied from Settings on load).
         #[serde(default)]
         pub skills: SkillsConfig,
-        /// Optional URL for the session-share service.  When set, `/share`
-        /// POSTs the session to this endpoint and returns the resulting URL.
-        /// When absent, `/share` falls back to a local Markdown export.
-        #[serde(default, rename = "shareEndpoint")]
-        pub share_endpoint: Option<String>,
+        /// Managed agent (manager-executor) configuration.
+        #[serde(default)]
+        pub managed_agents: Option<ManagedAgentConfig>,
     }
 
     #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -863,6 +1058,9 @@ pub mod config {
         /// Skill-discovery configuration (extra paths and git URLs).
         #[serde(default)]
         pub skills: SkillsConfig,
+        /// Managed agent (manager-executor) configuration.
+        #[serde(default)]
+        pub managed_agents: Option<ManagedAgentConfig>,
     }
 
     /// A user-defined slash command template.
@@ -892,7 +1090,11 @@ pub mod config {
 
     impl Default for FormatterConfig {
         fn default() -> Self {
-            Self { command: Vec::new(), extensions: Vec::new(), disabled: false }
+            Self {
+                command: Vec::new(),
+                extensions: Vec::new(),
+                disabled: false,
+            }
         }
     }
 
@@ -943,6 +1145,17 @@ pub mod config {
     }
 
     impl Config {
+        pub fn selected_provider_id(&self) -> &str {
+            self.provider
+                .as_deref()
+                .or_else(|| {
+                    self.model
+                        .as_deref()
+                        .and_then(|model| model.split_once('/').map(|(provider, _)| provider))
+                })
+                .unwrap_or("anthropic")
+        }
+
         /// Resolve the effective model, falling back to a provider-appropriate default.
         ///
         /// When a non-Anthropic provider is active and no model is explicitly set,
@@ -961,7 +1174,9 @@ pub mod config {
                 Some("mistral") => "mistral-large-latest",
                 Some("xai") => "grok-2",
                 Some("openrouter") => "anthropic/claude-sonnet-4",
-                Some("togetherai") | Some("together-ai") => "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                Some("togetherai") | Some("together-ai") => {
+                    "meta-llama/Llama-3.3-70B-Instruct-Turbo"
+                }
                 Some("perplexity") => "sonar-pro",
                 Some("cohere") => "command-r-plus",
                 Some("deepinfra") => "meta-llama/Llama-3.3-70B-Instruct",
@@ -975,8 +1190,6 @@ pub mod config {
                 _ => crate::constants::DEFAULT_MODEL, // Anthropic default
             }
         }
-
-
 
         /// Resolve the effective max-tokens.
         pub fn effective_max_tokens(&self) -> u32 {
@@ -1002,7 +1215,7 @@ pub mod config {
         }
 
         /// Resolve the prompt text for the selected output style, including
-        /// user-defined styles loaded from `~/.claurst/output-styles/`.
+        /// user-defined styles loaded from `~/.jet/output-styles/`.
         pub fn resolve_output_style_prompt(&self) -> Option<String> {
             let style_name = self.output_style.as_deref().unwrap_or("default");
             let styles = crate::output_styles::all_styles(&Settings::config_dir());
@@ -1011,24 +1224,68 @@ pub mod config {
                 .filter(|prompt| !prompt.trim().is_empty())
         }
 
-        /// Resolve the API key from the config, then from `ANTHROPIC_API_KEY`.
-        pub fn resolve_api_key(&self) -> Option<String> {
-            self.api_key
-                .clone()
-                .or_else(|| std::env::var("ANTHROPIC_API_KEY").ok())
+        pub fn resolve_provider_api_key(&self, provider_id: &str) -> Option<String> {
+            let provider_cfg = self.provider_configs.get(provider_id);
+            if provider_cfg.is_some_and(|provider| !provider.enabled) {
+                return None;
+            }
+
+            let top_level_key = if provider_id == self.selected_provider_id() {
+                self.api_key.clone()
+            } else {
+                None
+            };
+
+            top_level_key
+                .filter(|key| !key.is_empty())
+                .or_else(|| {
+                    provider_cfg
+                        .and_then(|provider| provider.api_key.clone())
+                        .filter(|key| !key.is_empty())
+                })
+                .or_else(|| crate::AuthStore::load().api_key_for(provider_id))
         }
 
-        /// Async variant: also checks `~/.claurst/oauth_tokens.json`.
+        pub fn resolve_anthropic_api_key(&self) -> Option<String> {
+            self.api_key
+                .clone()
+                .filter(|key| !key.is_empty())
+                .or_else(|| {
+                    self.provider_configs
+                        .get("anthropic")
+                        .and_then(|provider| provider.api_key.clone())
+                        .filter(|key| !key.is_empty())
+                })
+                .or_else(|| {
+                    api_key_env_vars_for_provider("anthropic")
+                        .iter()
+                        .find_map(|var| std::env::var(var).ok().filter(|v| !v.is_empty()))
+                })
+        }
+
+        /// Resolve the API key for the active provider.
+        pub fn resolve_api_key(&self) -> Option<String> {
+            self.resolve_provider_api_key(self.selected_provider_id())
+        }
+
+        /// Async variant: also checks `~/.jet/oauth_tokens.json`.
         /// Returns `(credential, use_bearer_auth)`.
         /// - For Console OAuth flow: credential is the stored API key, bearer=false.
         /// - For Claude.ai OAuth flow: credential is the access token, bearer=true.
         /// Silently attempts token refresh when the access token is expired.
         pub async fn resolve_auth_async(&self) -> Option<(String, bool)> {
-            // Highest priority: explicit api_key or env var
-            if let Some(key) = self.resolve_api_key() {
+            if self.selected_provider_id() != "anthropic" {
+                return self.resolve_api_key().map(|key| (key, false));
+            }
+
+            self.resolve_anthropic_auth_async().await
+        }
+
+        pub async fn resolve_anthropic_auth_async(&self) -> Option<(String, bool)> {
+            if let Some(key) = self.resolve_anthropic_api_key() {
                 return Some((key, false));
             }
-            // Fall back to saved OAuth tokens
+
             let tokens = crate::oauth::OAuthTokens::load().await?;
 
             // If expired and we have a refresh token, attempt silent refresh.
@@ -1046,25 +1303,43 @@ pub mod config {
                     let refreshed = 'refresh: {
                         let Ok(client) = reqwest::Client::builder()
                             .timeout(std::time::Duration::from_secs(30))
-                            .build() else { break 'refresh None; };
+                            .build()
+                        else {
+                            break 'refresh None;
+                        };
                         let Ok(resp) = client
                             .post(crate::oauth::TOKEN_URL)
                             .header("content-type", "application/json")
                             .json(&body)
                             .send()
-                            .await else { break 'refresh None; };
-                        if !resp.status().is_success() { break 'refresh None; }
-                        let Ok(data) = resp.json::<serde_json::Value>().await else { break 'refresh None; };
+                            .await
+                        else {
+                            break 'refresh None;
+                        };
+                        if !resp.status().is_success() {
+                            break 'refresh None;
+                        }
+                        let Ok(data) = resp.json::<serde_json::Value>().await else {
+                            break 'refresh None;
+                        };
                         let new_at = data["access_token"].as_str().unwrap_or("").to_string();
-                        if new_at.is_empty() { break 'refresh None; }
+                        if new_at.is_empty() {
+                            break 'refresh None;
+                        }
                         let new_rt = data["refresh_token"].as_str().map(String::from);
                         let exp_in = data["expires_in"].as_u64().unwrap_or(3600);
                         let exp_ms = chrono::Utc::now().timestamp_millis() + (exp_in as i64 * 1000);
                         let scopes: Vec<String> = data["scope"]
-                            .as_str().unwrap_or("").split_whitespace().map(String::from).collect();
+                            .as_str()
+                            .unwrap_or("")
+                            .split_whitespace()
+                            .map(String::from)
+                            .collect();
                         let mut r = tokens.clone();
                         r.access_token = new_at;
-                        if let Some(nrt) = new_rt { r.refresh_token = Some(nrt); }
+                        if let Some(nrt) = new_rt {
+                            r.refresh_token = Some(nrt);
+                        }
                         r.expires_at_ms = Some(exp_ms);
                         r.scopes = scopes;
                         let _ = r.save().await;
@@ -1085,19 +1360,41 @@ pub mod config {
             }
         }
 
-        /// Resolve the API base URL, checking `ANTHROPIC_BASE_URL` first.
+        pub fn resolve_provider_api_base(&self, provider_id: &str) -> Option<String> {
+            let provider_cfg = self.provider_configs.get(provider_id);
+            if provider_cfg.is_some_and(|provider| !provider.enabled) {
+                return None;
+            }
+
+            provider_cfg
+                .and_then(|provider| provider.api_base.clone())
+                .filter(|base| !base.is_empty())
+                .or_else(|| {
+                    api_base_env_var_for_provider(provider_id)
+                        .and_then(|name| std::env::var(name).ok())
+                        .filter(|base| !base.is_empty())
+                })
+                .or_else(|| default_api_base_for_provider(provider_id).map(str::to_owned))
+        }
+
+        pub fn resolve_anthropic_api_base(&self) -> String {
+            self.resolve_provider_api_base("anthropic")
+                .unwrap_or_else(|| crate::constants::ANTHROPIC_API_BASE.to_string())
+        }
+
+        /// Resolve the API base URL for the active provider.
         pub fn resolve_api_base(&self) -> String {
-            std::env::var("ANTHROPIC_BASE_URL")
-                .unwrap_or_else(|_| crate::constants::ANTHROPIC_API_BASE.to_string())
+            self.resolve_provider_api_base(self.selected_provider_id())
+                .unwrap_or_else(|| self.resolve_anthropic_api_base())
         }
     }
 
     impl Settings {
-        /// The per-user configuration directory (`~/.claurst`).
+        /// The per-user configuration directory (`~/.jet`).
         pub fn config_dir() -> PathBuf {
             dirs::home_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
-                .join(".claurst")
+                .join(".jet")
         }
 
         /// Full path to the global settings JSON file.
@@ -1163,14 +1460,23 @@ pub mod config {
             }
             // Merge top-level `providers` map into config.provider_configs.
             for (id, pc) in &self.providers {
-                config.provider_configs.entry(id.clone()).or_insert_with(|| pc.clone());
+                config
+                    .provider_configs
+                    .entry(id.clone())
+                    .or_insert_with(|| pc.clone());
             }
             // Copy top-level formatters and commands into config.
             for (k, v) in &self.formatter {
-                config.formatter.entry(k.clone()).or_insert_with(|| v.clone());
+                config
+                    .formatter
+                    .entry(k.clone())
+                    .or_insert_with(|| v.clone());
             }
             for (k, v) in &self.commands {
-                config.commands.entry(k.clone()).or_insert_with(|| v.clone());
+                config
+                    .commands
+                    .entry(k.clone())
+                    .or_insert_with(|| v.clone());
             }
             // Copy top-level agent definitions into config.
             for (k, v) in &self.agents {
@@ -1202,15 +1508,15 @@ pub mod config {
             merged
         }
 
-        /// Walk up from `cwd` looking for `.claurst/settings.json` or
-        /// `.claurst/settings.jsonc`.
+        /// Walk up from `cwd` looking for `.jet/settings.json` or
+        /// `.jet/settings.jsonc`.
         async fn find_project_settings(cwd: &std::path::Path) -> Option<Self> {
             let global_path = Self::global_settings_path();
             let mut dir = cwd;
             loop {
                 // Try .json first, then .jsonc.
                 for name in &["settings.json", "settings.jsonc"] {
-                    let candidate = dir.join(".claurst").join(name);
+                    let candidate = dir.join(".jet").join(name);
                     if candidate.exists() && candidate != global_path {
                         if let Ok(content) = tokio::fs::read_to_string(&candidate).await {
                             let stripped = strip_jsonc_comments(&content);
@@ -1239,7 +1545,9 @@ pub mod config {
                 mut base: HashMap<K, V>,
                 over: HashMap<K, V>,
             ) -> HashMap<K, V> {
-                for (k, v) in over { base.insert(k, v); }
+                for (k, v) in over {
+                    base.insert(k, v);
+                }
                 base
             }
             // Merge the embedded Config structs.
@@ -1258,42 +1566,101 @@ pub mod config {
                 },
                 verbose: over.config.verbose || base.config.verbose,
                 output_format: over.config.output_format,
-                mcp_servers: { let mut v = base.config.mcp_servers; v.extend(over.config.mcp_servers); v },
-                lsp_servers: { let mut v = base.config.lsp_servers; v.extend(over.config.lsp_servers); v },
-                allowed_tools: { let mut v = base.config.allowed_tools; v.extend(over.config.allowed_tools); v.dedup(); v },
-                disallowed_tools: { let mut v = base.config.disallowed_tools; v.extend(over.config.disallowed_tools); v.dedup(); v },
+                mcp_servers: {
+                    let mut v = base.config.mcp_servers;
+                    v.extend(over.config.mcp_servers);
+                    v
+                },
+                lsp_servers: {
+                    let mut v = base.config.lsp_servers;
+                    v.extend(over.config.lsp_servers);
+                    v
+                },
+                allowed_tools: {
+                    let mut v = base.config.allowed_tools;
+                    v.extend(over.config.allowed_tools);
+                    v.dedup();
+                    v
+                },
+                disallowed_tools: {
+                    let mut v = base.config.disallowed_tools;
+                    v.extend(over.config.disallowed_tools);
+                    v.dedup();
+                    v
+                },
                 env: merge_map(base.config.env, over.config.env),
-                enable_all_mcp_servers: over.config.enable_all_mcp_servers || base.config.enable_all_mcp_servers,
-                custom_system_prompt: over.config.custom_system_prompt.or(base.config.custom_system_prompt),
-                append_system_prompt: over.config.append_system_prompt.or(base.config.append_system_prompt),
-                disable_claude_mds: over.config.disable_claude_mds || base.config.disable_claude_mds,
+                enable_all_mcp_servers: over.config.enable_all_mcp_servers
+                    || base.config.enable_all_mcp_servers,
+                custom_system_prompt: over
+                    .config
+                    .custom_system_prompt
+                    .or(base.config.custom_system_prompt),
+                append_system_prompt: over
+                    .config
+                    .append_system_prompt
+                    .or(base.config.append_system_prompt),
+                disable_claude_mds: over.config.disable_claude_mds
+                    || base.config.disable_claude_mds,
                 project_dir: over.config.project_dir.or(base.config.project_dir),
-                workspace_paths: { let mut v = base.config.workspace_paths; v.extend(over.config.workspace_paths); v },
-                additional_dirs: { let mut v = base.config.additional_dirs; v.extend(over.config.additional_dirs); v },
+                workspace_paths: {
+                    let mut v = base.config.workspace_paths;
+                    v.extend(over.config.workspace_paths);
+                    v
+                },
+                additional_dirs: {
+                    let mut v = base.config.additional_dirs;
+                    v.extend(over.config.additional_dirs);
+                    v
+                },
                 hooks: merge_map(base.config.hooks, over.config.hooks),
                 provider: over.config.provider.or(base.config.provider),
-                provider_configs: merge_map(base.config.provider_configs, over.config.provider_configs),
+                provider_configs: merge_map(
+                    base.config.provider_configs,
+                    over.config.provider_configs,
+                ),
                 formatter: merge_map(base.config.formatter, over.config.formatter),
                 commands: merge_map(base.config.commands, over.config.commands),
                 agents: merge_map(base.config.agents, over.config.agents),
                 skills: {
                     let mut paths = base.config.skills.paths;
-                    for p in over.config.skills.paths { if !paths.contains(&p) { paths.push(p); } }
+                    for p in over.config.skills.paths {
+                        if !paths.contains(&p) {
+                            paths.push(p);
+                        }
+                    }
                     let mut urls = base.config.skills.urls;
-                    for u in over.config.skills.urls { if !urls.contains(&u) { urls.push(u); } }
+                    for u in over.config.skills.urls {
+                        if !urls.contains(&u) {
+                            urls.push(u);
+                        }
+                    }
                     SkillsConfig { paths, urls }
                 },
-                share_endpoint: over.config.share_endpoint.or(base.config.share_endpoint),
+                managed_agents: over.config.managed_agents.or(base.config.managed_agents),
             };
             Self {
                 config: merged_config,
                 version: over.version.or(base.version),
                 projects: merge_map(base.projects, over.projects),
-                remote_control_at_startup: over.remote_control_at_startup || base.remote_control_at_startup,
-                permission_rules: { let mut v = base.permission_rules; v.extend(over.permission_rules); v },
-                enabled_plugins: { let mut s = base.enabled_plugins; s.extend(over.enabled_plugins); s },
-                disabled_plugins: { let mut s = base.disabled_plugins; s.extend(over.disabled_plugins); s },
-                has_completed_onboarding: over.has_completed_onboarding || base.has_completed_onboarding,
+                remote_control_at_startup: over.remote_control_at_startup
+                    || base.remote_control_at_startup,
+                permission_rules: {
+                    let mut v = base.permission_rules;
+                    v.extend(over.permission_rules);
+                    v
+                },
+                enabled_plugins: {
+                    let mut s = base.enabled_plugins;
+                    s.extend(over.enabled_plugins);
+                    s
+                },
+                disabled_plugins: {
+                    let mut s = base.disabled_plugins;
+                    s.extend(over.disabled_plugins);
+                    s
+                },
+                has_completed_onboarding: over.has_completed_onboarding
+                    || base.has_completed_onboarding,
                 last_seen_version: over.last_seen_version.or(base.last_seen_version),
                 provider: over.provider.or(base.provider),
                 providers: merge_map(base.providers, over.providers),
@@ -1302,11 +1669,20 @@ pub mod config {
                 agents: merge_map(base.agents, over.agents),
                 skills: {
                     let mut paths = base.skills.paths;
-                    for p in over.skills.paths { if !paths.contains(&p) { paths.push(p); } }
+                    for p in over.skills.paths {
+                        if !paths.contains(&p) {
+                            paths.push(p);
+                        }
+                    }
                     let mut urls = base.skills.urls;
-                    for u in over.skills.urls { if !urls.contains(&u) { urls.push(u); } }
+                    for u in over.skills.urls {
+                        if !urls.contains(&u) {
+                            urls.push(u);
+                        }
+                    }
                     SkillsConfig { paths, urls }
                 },
+                managed_agents: over.managed_agents.or(base.managed_agents),
             }
         }
     }
@@ -1321,7 +1697,9 @@ pub mod config {
 
         while let Some(ch) = chars.next() {
             if in_string {
-                if ch == '"' && prev_char != '\\' { in_string = false; }
+                if ch == '"' && prev_char != '\\' {
+                    in_string = false;
+                }
                 result.push(ch);
                 prev_char = ch;
                 continue;
@@ -1336,15 +1714,24 @@ pub mod config {
                 match chars.peek() {
                     Some('/') => {
                         // Line comment — skip to end of line.
-                        for c in chars.by_ref() { if c == '\n' { result.push('\n'); break; } }
+                        for c in chars.by_ref() {
+                            if c == '\n' {
+                                result.push('\n');
+                                break;
+                            }
+                        }
                     }
                     Some('*') => {
                         // Block comment — skip until `*/`.
                         chars.next();
                         let mut prev = '\0';
                         for c in chars.by_ref() {
-                            if prev == '*' && c == '/' { break; }
-                            if c == '\n' { result.push('\n'); }
+                            if prev == '*' && c == '/' {
+                                break;
+                            }
+                            if c == '\n' {
+                                result.push('\n');
+                            }
                             prev = c;
                         }
                     }
@@ -1366,16 +1753,14 @@ pub mod config {
         loop {
             match result.find("{env:") {
                 None => break,
-                Some(start) => {
-                    match result[start..].find('}') {
-                        None => break,
-                        Some(rel_end) => {
-                            let var_name = result[start + 5..start + rel_end].to_string();
-                            let value = std::env::var(&var_name).unwrap_or_default();
-                            result.replace_range(start..start + rel_end + 1, &value);
-                        }
+                Some(start) => match result[start..].find('}') {
+                    None => break,
+                    Some(rel_end) => {
+                        let var_name = result[start + 5..start + rel_end].to_string();
+                        let value = std::env::var(&var_name).unwrap_or_default();
+                        result.replace_range(start..start + rel_end + 1, &value);
                     }
-                }
+                },
             }
         }
         result
@@ -1413,7 +1798,7 @@ pub mod constants {
     pub const CLAUDE_MD_FILENAME: &str = "AGENTS.md";
     pub const SETTINGS_FILENAME: &str = "settings.json";
     pub const HISTORY_FILENAME: &str = "conversations";
-    pub const CONFIG_DIR_NAME: &str = ".claurst";
+    pub const CONFIG_DIR_NAME: &str = ".jet";
 
     // Tool names
     pub const TOOL_NAME_BASH: &str = "Bash";
@@ -1486,10 +1871,7 @@ pub mod context {
 
             // Platform information
             parts.push(format!("Platform: {}", std::env::consts::OS));
-            parts.push(format!(
-                "Working directory: {}",
-                self.cwd.display()
-            ));
+            parts.push(format!("Working directory: {}", self.cwd.display()));
 
             if let Some(git_context) = self.get_git_context().await {
                 parts.push(git_context);
@@ -1508,9 +1890,7 @@ pub mod context {
         pub async fn build_user_context(&self) -> String {
             let mut parts = vec![];
 
-            let date = chrono::Local::now()
-                .format("%A, %B %d, %Y")
-                .to_string();
+            let date = chrono::Local::now().format("%A, %B %d, %Y").to_string();
             parts.push(format!("Today's date is {}.", date));
 
             if !self.disable_claude_mds {
@@ -1558,10 +1938,11 @@ pub mod context {
         async fn find_and_read_claude_md(&self) -> Option<String> {
             let mut claude_mds = vec![];
 
-            // Global ~/.claurst/AGENTS.md
+            // Global ~/.jet/AGENTS.md
             if let Some(home) = dirs::home_dir() {
-                let global_claude_md =
-                    home.join(".claurst").join(crate::constants::CLAUDE_MD_FILENAME);
+                let global_claude_md = home
+                    .join(".jet")
+                    .join(crate::constants::CLAUDE_MD_FILENAME);
                 if global_claude_md.exists() {
                     if let Ok(content) = tokio::fs::read_to_string(&global_claude_md).await {
                         claude_mds.push(format!(
@@ -1792,10 +2173,7 @@ pub mod permissions {
                 } else {
                     "\nThis will write to the filesystem."
                 };
-                format!(
-                    "{} wants to write to `{}`{}",
-                    tool_name, target, extra
-                )
+                format!("{} wants to write to `{}`{}", tool_name, target, extra)
             }
             PermissionLevel::Network => {
                 let url = path.unwrap_or(description);
@@ -1933,11 +2311,8 @@ pub mod permissions {
             let level = PermissionLevel::for_tool(tool_name);
             match level {
                 PermissionLevel::Read => PermissionDecision::Allow,
-                PermissionLevel::Write
-                | PermissionLevel::Execute
-                | PermissionLevel::Network => {
-                    let reason =
-                        format_permission_reason(tool_name, description, path, level);
+                PermissionLevel::Write | PermissionLevel::Execute | PermissionLevel::Network => {
+                    let reason = format_permission_reason(tool_name, description, path, level);
                     PermissionDecision::Ask { reason }
                 }
             }
@@ -2246,7 +2621,10 @@ pub mod permissions {
         #[test]
         fn bypass_always_allows() {
             let m = mgr(PermissionMode::BypassPermissions);
-            assert_eq!(m.evaluate("Bash", "rm -rf /", None), PermissionDecision::Allow);
+            assert_eq!(
+                m.evaluate("Bash", "rm -rf /", None),
+                PermissionDecision::Allow
+            );
         }
 
         #[test]
@@ -2287,7 +2665,10 @@ pub mod permissions {
                 action: PermissionAction::Deny,
                 scope: PermissionScope::Session,
             });
-            assert_eq!(m.evaluate("Bash", "echo hi", None), PermissionDecision::Deny);
+            assert_eq!(
+                m.evaluate("Bash", "echo hi", None),
+                PermissionDecision::Deny
+            );
         }
 
         #[test]
@@ -2349,8 +2730,7 @@ pub mod permissions {
 
         #[test]
         fn format_reason_bash() {
-            let s =
-                format_permission_reason("Bash", "ls -la", None, PermissionLevel::Execute);
+            let s = format_permission_reason("Bash", "ls -la", None, PermissionLevel::Execute);
             assert!(s.contains("Bash wants to run"));
             assert!(s.contains("ls -la"));
         }
@@ -2522,7 +2902,7 @@ pub mod history {
         crate::config::Settings::config_dir().join("sessions")
     }
 
-    /// Save a session to `~/.claurst/sessions/<id>.json`.
+    /// Save a session to `~/.jet/sessions/<id>.json`.
     pub async fn save_session(session: &ConversationSession) -> anyhow::Result<()> {
         let dir = sessions_dir();
         tokio::fs::create_dir_all(&dir).await?;
@@ -2766,13 +3146,7 @@ pub mod cost {
             *self.pricing.write() = ModelPricing::for_model(model);
         }
 
-        pub fn add_usage(
-            &self,
-            input: u64,
-            output: u64,
-            cache_creation: u64,
-            cache_read: u64,
-        ) {
+        pub fn add_usage(&self, input: u64, output: u64, cache_creation: u64, cache_read: u64) {
             self.input_tokens.fetch_add(input, Ordering::Relaxed);
             self.output_tokens.fetch_add(output, Ordering::Relaxed);
             self.cache_creation_tokens
@@ -2971,15 +3345,13 @@ pub mod oauth {
     // ---- Production OAuth endpoints & constants ----
 
     // NOTE: This client ID is registered to Anthropic's official Claude Code CLI.
-    // It will NOT work for Claurst. Users should use an API key from console.anthropic.com.
-    pub const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"; // Anthropic's — will not work for Claurst
+    // It will NOT work for jet. Users should use an API key from console.anthropic.com.
+    pub const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"; // Anthropic's — will not work for jet
     pub const CONSOLE_AUTHORIZE_URL: &str = "https://platform.claude.com/oauth/authorize";
     pub const CLAUDE_AI_AUTHORIZE_URL: &str = "https://claude.com/cai/oauth/authorize";
     pub const TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token";
-    pub const API_KEY_URL: &str =
-        "https://api.anthropic.com/api/oauth/claude_cli/create_api_key";
-    pub const MANUAL_REDIRECT_URL: &str =
-        "https://platform.claude.com/oauth/code/callback";
+    pub const API_KEY_URL: &str = "https://api.anthropic.com/api/oauth/claude_cli/create_api_key";
+    pub const MANUAL_REDIRECT_URL: &str = "https://platform.claude.com/oauth/code/callback";
     pub const CLAUDEAI_SUCCESS_URL: &str =
         "https://platform.claude.com/oauth/code/success?app=claude-code";
     pub const CONSOLE_SUCCESS_URL: &str = "https://platform.claude.com/buy_credits\
@@ -3000,7 +3372,7 @@ pub mod oauth {
 
     // ---- Stored token struct ----
 
-    /// Persisted OAuth tokens (saved to `~/.claurst/oauth_tokens.json`).
+    /// Persisted OAuth tokens (saved to `~/.jet/oauth_tokens.json`).
     #[derive(Debug, Clone, Serialize, Deserialize, Default)]
     pub struct OAuthTokens {
         pub access_token: String,
@@ -3035,7 +3407,11 @@ pub mod oauth {
         /// - Claude.ai flow: the `access_token` itself (Bearer)
         pub fn effective_credential(&self) -> Option<&str> {
             if self.uses_bearer_auth() {
-                if self.access_token.is_empty() { None } else { Some(&self.access_token) }
+                if self.access_token.is_empty() {
+                    None
+                } else {
+                    Some(&self.access_token)
+                }
             } else {
                 self.api_key.as_deref()
             }
@@ -3055,7 +3431,7 @@ pub mod oauth {
         pub fn token_file_path() -> std::path::PathBuf {
             dirs::home_dir()
                 .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join(".claurst")
+                .join(".jet")
                 .join("oauth_tokens.json")
         }
 
@@ -3125,8 +3501,7 @@ pub mod oauth {
         callback_port: u16,
         is_manual: bool,
     ) -> String {
-        let mut u = url::Url::parse(authorize_base)
-            .expect("valid OAuth authorize base URL");
+        let mut u = url::Url::parse(authorize_base).expect("valid OAuth authorize base URL");
         {
             let mut q = u.query_pairs_mut();
             q.append_pair("code", "true"); // tells the login page to show Claude Max upsell
@@ -3154,27 +3529,27 @@ pub use oauth::OAuthTokens;
 // New modules: keybindings, voice, analytics, lsp, team_memory_sync,
 //              system_prompt, memdir, oauth_config
 // ---------------------------------------------------------------------------
-pub mod keybindings;
-pub mod voice;
 pub mod analytics;
-pub mod lsp;
-pub mod session_tracing;
-pub mod context_collapse;
-pub mod team_memory_sync;
-pub mod system_prompt;
-pub mod memdir;
-pub mod oauth_config;
-pub mod codex_oauth;
-pub mod migrations;
-pub mod output_styles;
-pub mod feature_gates;
-pub mod tips;
-pub mod remote_settings;
-pub mod settings_sync;
-pub mod effort;
-pub mod prompt_history;
 pub mod bash_classifier;
+pub mod codex_oauth;
+pub mod context_collapse;
+pub mod effort;
+pub mod feature_gates;
+pub mod keybindings;
+pub mod lsp;
+pub mod memdir;
+pub mod migrations;
+pub mod oauth_config;
+pub mod output_styles;
+pub mod prompt_history;
 pub mod ps_classifier;
+pub mod remote_settings;
+pub mod session_tracing;
+pub mod settings_sync;
+pub mod system_prompt;
+pub mod team_memory_sync;
+pub mod tips;
+pub mod voice;
 
 // ---------------------------------------------------------------------------
 // tasks module — background task registry
@@ -3400,7 +3775,10 @@ mod tests {
     #[test]
     fn test_config_effective_max_tokens_default() {
         let cfg = crate::config::Config::default();
-        assert_eq!(cfg.effective_max_tokens(), crate::constants::DEFAULT_MAX_TOKENS);
+        assert_eq!(
+            cfg.effective_max_tokens(),
+            crate::constants::DEFAULT_MAX_TOKENS
+        );
     }
 
     #[test]
@@ -3465,7 +3843,10 @@ mod tests {
             expires_at_ms: None,
             ..Default::default()
         };
-        assert!(!tokens.is_expired(), "Token with no expiry should not be considered expired");
+        assert!(
+            !tokens.is_expired(),
+            "Token with no expiry should not be considered expired"
+        );
     }
 
     #[test]
@@ -3498,7 +3879,10 @@ mod tests {
             expires_at_ms: Some(chrono::Utc::now().timestamp_millis() + 3 * 60 * 1000),
             ..Default::default()
         };
-        assert!(tokens.is_expired(), "Token within 5-min buffer should be considered expired");
+        assert!(
+            tokens.is_expired(),
+            "Token within 5-min buffer should be considered expired"
+        );
     }
 
     #[test]
@@ -3568,9 +3952,15 @@ mod tests {
     fn test_pkce_code_verifier_length() {
         let verifier = crate::oauth::generate_code_verifier();
         // 32 bytes base64url-encoded (no padding) = ceil(32 * 4/3) = 43 chars
-        assert_eq!(verifier.len(), 43, "Code verifier should be 43 base64url chars (32 bytes)");
+        assert_eq!(
+            verifier.len(),
+            43,
+            "Code verifier should be 43 base64url chars (32 bytes)"
+        );
         // Must only contain URL-safe base64 chars
-        assert!(verifier.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+        assert!(verifier
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
     }
 
     #[test]
@@ -3578,8 +3968,14 @@ mod tests {
         let verifier = crate::oauth::generate_code_verifier();
         let challenge = crate::oauth::generate_code_challenge(&verifier);
         // SHA256 = 32 bytes → 43 base64url chars
-        assert_eq!(challenge.len(), 43, "Code challenge should be 43 base64url chars (SHA256 = 32 bytes)");
-        assert!(challenge.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+        assert_eq!(
+            challenge.len(),
+            43,
+            "Code challenge should be 43 base64url chars (SHA256 = 32 bytes)"
+        );
+        assert!(challenge
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
     }
 
     #[test]
@@ -3602,7 +3998,9 @@ mod tests {
     fn test_pkce_state_length_and_format() {
         let state = crate::oauth::generate_state();
         assert_eq!(state.len(), 43);
-        assert!(state.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+        assert!(state
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'));
     }
 
     // ---- Auth URL building tests --------------------------------------------
@@ -3639,10 +4037,7 @@ mod tests {
             9999,
             true, // manual
         );
-        assert!(
-            url.contains("redirect_uri="),
-            "URL must have redirect_uri"
-        );
+        assert!(url.contains("redirect_uri="), "URL must have redirect_uri");
         // Manual redirect should NOT be localhost
         assert!(
             !url.contains("localhost"),
@@ -3754,8 +4149,12 @@ mod tests {
     #[test]
     fn test_message_get_all_text_multiple_blocks() {
         let msg = Message::assistant_blocks(vec![
-            ContentBlock::Text { text: "First ".into() },
-            ContentBlock::Text { text: "Second".into() },
+            ContentBlock::Text {
+                text: "First ".into(),
+            },
+            ContentBlock::Text {
+                text: "Second".into(),
+            },
         ]);
         assert_eq!(msg.get_all_text(), "First Second");
     }
@@ -3767,7 +4166,9 @@ mod tests {
                 thinking: "reasoning".into(),
                 signature: "sig".into(),
             },
-            ContentBlock::Text { text: "answer".into() },
+            ContentBlock::Text {
+                text: "answer".into(),
+            },
         ]);
         assert_eq!(msg.get_text(), Some("answer"));
     }
@@ -3793,5 +4194,48 @@ mod tests {
         assert_eq!(tracker.input_tokens(), 0);
         assert_eq!(tracker.output_tokens(), 0);
         assert_eq!(tracker.total_cost_usd(), 0.0);
+    }
+
+    #[test]
+    fn managed_agent_config_serde_round_trip() {
+        let cfg = ManagedAgentConfig {
+            enabled: true,
+            manager_model: "anthropic/claude-opus-4-6".to_string(),
+            executor_model: "anthropic/claude-sonnet-4-6".to_string(),
+            executor_max_turns: 10,
+            max_concurrent_executors: 4,
+            budget_split: BudgetSplitPolicy::Percentage { manager_pct: 30 },
+            total_budget_usd: Some(5.0),
+            preset_name: Some("anthropic-tiered".to_string()),
+            executor_isolation: false,
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        let decoded: ManagedAgentConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.manager_model, "anthropic/claude-opus-4-6");
+        assert_eq!(decoded.executor_max_turns, 10);
+    }
+
+    #[test]
+    fn budget_split_policy_defaults_to_shared_pool() {
+        let json = r#"{"enabled":true,"manager_model":"a/b","executor_model":"a/c"}"#;
+        let cfg: ManagedAgentConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.budget_split, BudgetSplitPolicy::SharedPool);
+        assert_eq!(cfg.executor_max_turns, 10);
+    }
+
+    #[test]
+    fn builtin_presets_all_have_valid_model_format() {
+        for preset in builtin_managed_agent_presets() {
+            assert!(
+                preset.manager_model.contains('/'),
+                "Preset {} manager_model must be provider/model",
+                preset.name
+            );
+            assert!(
+                preset.executor_model.contains('/'),
+                "Preset {} executor_model must be provider/model",
+                preset.name
+            );
+        }
     }
 }

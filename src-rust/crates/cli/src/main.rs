@@ -8,8 +8,8 @@
 //    - Headless (--print / -p) mode: single query, output to stdout
 //    - Interactive REPL mode: full TUI with ratatui
 
-mod oauth_flow;
 mod codex_oauth_flow;
+mod oauth_flow;
 
 // ---------------------------------------------------------------------------
 // Build-time metadata (embedded via build.rs)
@@ -31,17 +31,17 @@ pub const FEEDBACK_CHANNEL: &str = env!("FEEDBACK_CHANNEL");
 pub const ISSUES_EXPLAINER: &str = env!("ISSUES_EXPLAINER");
 
 use anyhow::Context;
-use claurst_core::{
+use async_trait::async_trait;
+use clap::{ArgAction, Parser, ValueEnum};
+use jet_core::types::ToolDefinition;
+use jet_core::{
     config::{Config, PermissionMode, Settings},
     constants::APP_VERSION,
     context::ContextBuilder,
     cost::CostTracker,
     permissions::{AutoPermissionHandler, InteractivePermissionHandler},
 };
-use async_trait::async_trait;
-use claurst_core::types::ToolDefinition;
-use claurst_tools::{PermissionLevel, Tool, ToolContext, ToolResult};
-use clap::{ArgAction, Parser, ValueEnum};
+use jet_tools::{PermissionLevel, Tool, ToolContext, ToolResult};
 use parking_lot::Mutex as ParkingMutex;
 use std::{path::PathBuf, sync::Arc};
 use tracing::{debug, info, warn};
@@ -54,7 +54,7 @@ use tracing_subscriber::EnvFilter;
 struct McpToolWrapper {
     tool_def: ToolDefinition,
     server_name: String,
-    manager: Arc<claurst_mcp::McpManager>,
+    manager: Arc<jet_mcp::McpManager>,
 }
 
 #[async_trait]
@@ -89,7 +89,7 @@ impl Tool for McpToolWrapper {
 
         match self.manager.call_tool(&self.tool_def.name, args).await {
             Ok(result) => {
-                let text = claurst_mcp::mcp_result_to_string(&result);
+                let text = jet_mcp::mcp_result_to_string(&result);
                 if result.is_error {
                     ToolResult::error(text)
                 } else {
@@ -156,7 +156,7 @@ struct Cli {
     #[arg(long = "verbose", short = 'v', action = ArgAction::SetTrue)]
     verbose: bool,
 
-    /// API key (overrides ANTHROPIC_API_KEY env var)
+    /// API key for the active provider (overrides provider-specific env vars)
     #[arg(long = "api-key")]
     api_key: Option<String>,
 
@@ -249,11 +249,11 @@ struct Cli {
     fallback_model: Option<String>,
 
     /// LLM provider to use (default: anthropic). Examples: openai, google, ollama
-    #[arg(long, env = "CLAURST_PROVIDER")]
+    #[arg(long, env = "JET_PROVIDER")]
     provider: Option<String>,
 
     /// Override the API base URL for the selected provider
-    #[arg(long, env = "CLAURST_API_BASE")]
+    #[arg(long, env = "JET_API_BASE")]
     api_base: Option<String>,
 
     /// Named agent to use (e.g., build, plan, explore)
@@ -288,12 +288,12 @@ enum CliOutputFormat {
     StreamJson,
 }
 
-impl From<CliOutputFormat> for claurst_core::config::OutputFormat {
+impl From<CliOutputFormat> for jet_core::config::OutputFormat {
     fn from(f: CliOutputFormat) -> Self {
         match f {
-            CliOutputFormat::Text => claurst_core::config::OutputFormat::Text,
-            CliOutputFormat::Json => claurst_core::config::OutputFormat::Json,
-            CliOutputFormat::StreamJson => claurst_core::config::OutputFormat::StreamJson,
+            CliOutputFormat::Text => jet_core::config::OutputFormat::Text,
+            CliOutputFormat::Json => jet_core::config::OutputFormat::Json,
+            CliOutputFormat::StreamJson => jet_core::config::OutputFormat::StreamJson,
         }
     }
 }
@@ -312,12 +312,12 @@ fn resolve_bridge_config(
     auth_credential: &str,
     use_bearer_auth: bool,
     is_headless: bool,
-) -> Option<claurst_bridge::BridgeConfig> {
+) -> Option<jet_bridge::BridgeConfig> {
     if is_headless {
         return None;
     }
 
-    let mut bridge_config = claurst_bridge::BridgeConfig::from_env();
+    let mut bridge_config = jet_bridge::BridgeConfig::from_env();
 
     if settings.remote_control_at_startup {
         bridge_config.enabled = true;
@@ -350,18 +350,19 @@ async fn main() -> anyhow::Result<()> {
 
     // Fast-path: `claude acp` — start the Agent Client Protocol stdio server.
     if raw_args.get(1).map(|s| s.as_str()) == Some("acp") {
-        return claurst_acp::run_acp_server().await;
+        return jet_acp::run_acp_server().await;
     }
 
     // Fast-path: `claude models` — list all available providers and models.
     if raw_args.get(1).map(|s| s.as_str()) == Some("models") {
-        let mut registry = claurst_api::ModelRegistry::new();
+        let mut registry = jet_api::ModelRegistry::new();
         // Load cached models.dev data if available so the list is comprehensive.
         registry.load_cache(&models_cache_path());
         let mut entries = registry.list_all();
         // Sort by provider then model id for stable output.
         entries.sort_by(|a, b| {
-            (&*a.info.provider_id).cmp(&*b.info.provider_id)
+            (&*a.info.provider_id)
+                .cmp(&*b.info.provider_id)
                 .then_with(|| (&*a.info.id).cmp(&*b.info.id))
         });
         for entry in entries {
@@ -383,12 +384,13 @@ async fn main() -> anyhow::Result<()> {
     if let Some(cmd_name) = raw_args.get(1).map(|s| s.as_str()) {
         // Only intercept if it looks like a subcommand (no leading `-` or `/`)
         if !cmd_name.starts_with('-') && !cmd_name.starts_with('/') {
-            if let Some(named_cmd) = claurst_commands::named_commands::find_named_command(cmd_name) {
+            if let Some(named_cmd) = jet_commands::named_commands::find_named_command(cmd_name)
+            {
                 // Build a minimal CommandContext (named commands are pre-session)
                 let settings = Settings::load().await.unwrap_or_default();
                 let config = settings.effective_config();
                 let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-                let cmd_ctx = claurst_commands::CommandContext {
+                let cmd_ctx = jet_commands::CommandContext {
                     config,
                     cost_tracker: CostTracker::new(),
                     messages: vec![],
@@ -402,12 +404,12 @@ async fn main() -> anyhow::Result<()> {
                 let rest: Vec<&str> = raw_args[2..].iter().map(|s| s.as_str()).collect();
                 let result = named_cmd.execute_named(&rest, &cmd_ctx);
                 match result {
-                    claurst_commands::CommandResult::Message(msg)
-                    | claurst_commands::CommandResult::UserMessage(msg) => {
+                    jet_commands::CommandResult::Message(msg)
+                    | jet_commands::CommandResult::UserMessage(msg) => {
                         println!("{}", msg);
                         std::process::exit(0);
                     }
-                    claurst_commands::CommandResult::Error(e) => {
+                    jet_commands::CommandResult::Error(e) => {
                         eprintln!("Error: {}", e);
                         eprintln!("Usage: {}", named_cmd.usage());
                         std::process::exit(1);
@@ -427,8 +429,7 @@ async fn main() -> anyhow::Result<()> {
     let log_level = if cli.verbose { "debug" } else { "warn" };
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new(log_level)),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(log_level)),
         )
         .with_target(false)
         .without_time()
@@ -487,7 +488,10 @@ async fn main() -> anyhow::Result<()> {
     }
     if let Some(base) = &cli.api_base {
         // Store in the provider's config entry
-        let provider_id = config.provider.clone().unwrap_or_else(|| "anthropic".to_string());
+        let provider_id = config
+            .provider
+            .clone()
+            .unwrap_or_else(|| "anthropic".to_string());
         config
             .provider_configs
             .entry(provider_id)
@@ -497,8 +501,7 @@ async fn main() -> anyhow::Result<()> {
 
     // --dump-system-prompt fast path
     if cli.dump_system_prompt {
-        let ctx = ContextBuilder::new(cwd.clone())
-            .disable_claude_mds(config.disable_claude_mds);
+        let ctx = ContextBuilder::new(cwd.clone()).disable_claude_mds(config.disable_claude_mds);
         let sys = ctx.build_system_context().await;
         let user = ctx.build_user_context().await;
         println!("{}\n\n{}", sys, user);
@@ -506,8 +509,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Build context
-    let ctx_builder = ContextBuilder::new(cwd.clone())
-        .disable_claude_mds(config.disable_claude_mds);
+    let ctx_builder =
+        ContextBuilder::new(cwd.clone()).disable_claude_mds(config.disable_claude_mds);
     let system_ctx = ctx_builder.build_system_context().await;
     let user_ctx = ctx_builder.build_user_context().await;
 
@@ -535,68 +538,38 @@ async fn main() -> anyhow::Result<()> {
     // configured (OpenAI, Google, Ollama, Groq, etc.) — if so, proceed without
     // requiring Anthropic auth. Only launch the OAuth flow when Anthropic is
     // explicitly the intended provider and no key exists at all.
-    let other_provider_configured = {
-        let active_provider = config.provider.as_deref().unwrap_or("anthropic");
-        let has_non_anthropic_env =
-            std::env::var("OPENAI_API_KEY").is_ok()
-            || std::env::var("GOOGLE_API_KEY").is_ok()
-            || std::env::var("GOOGLE_GENERATIVE_AI_API_KEY").is_ok()
-            || std::env::var("GROQ_API_KEY").is_ok()
-            || std::env::var("XAI_API_KEY").is_ok()
-            || std::env::var("MISTRAL_API_KEY").is_ok()
-            || std::env::var("OPENROUTER_API_KEY").is_ok()
-            || std::env::var("DEEPSEEK_API_KEY").is_ok()
-            || std::env::var("COHERE_API_KEY").is_ok()
-            || std::env::var("TOGETHER_API_KEY").is_ok()
-            || std::env::var("PERPLEXITY_API_KEY").is_ok()
-            || std::env::var("CEREBRAS_API_KEY").is_ok()
-            || std::env::var("DEEPINFRA_API_KEY").is_ok()
-            || std::env::var("VENICE_API_KEY").is_ok()
-            || std::env::var("DASHSCOPE_API_KEY").is_ok()
-            || std::env::var("AZURE_API_KEY").is_ok()
-            || std::env::var("GITHUB_TOKEN").is_ok()
-            || std::env::var("AWS_BEARER_TOKEN_BEDROCK").is_ok()
-            || std::env::var("AWS_ACCESS_KEY_ID").is_ok()
-            // Local providers are always available
-            || true; // Ollama/LM Studio don't require keys
-        active_provider != "anthropic" || has_non_anthropic_env
-    };
-
-    let (api_key, use_bearer_auth) = match config.resolve_auth_async().await {
-        Some(auth) => auth,
-        None if other_provider_configured && config.provider.as_deref().unwrap_or("anthropic") != "anthropic" => {
-            // Non-Anthropic provider selected — no Anthropic key needed.
-            (String::new(), false)
-        }
-        None => {
-            // No Anthropic credential found.
-
-            if is_headless {
-                anyhow::bail!(
-                    "No API key found. Options:\n\
-                     - Set ANTHROPIC_API_KEY for Anthropic\n\
-                     - Set OPENAI_API_KEY for OpenAI\n\
-                     - Set GOOGLE_API_KEY for Google Gemini\n\
-                     - Set GROQ_API_KEY for Groq (fast, free tier available)\n\
-                     - Run `claurst --provider ollama` for local models (no key needed)\n\
-                     - Run `claurst auth login` for Anthropic OAuth"
-                );
-            } else {
-                // Interactive mode: start the TUI anyway — the provider setup
-                // dialog will be shown inside the TUI, just like OpenCode does.
-                (String::new(), false)
+    let active_provider = config.selected_provider_id();
+    let (api_key, use_bearer_auth) = if active_provider == "anthropic" {
+        match config.resolve_anthropic_auth_async().await {
+            Some(auth) => auth,
+            None => {
+                if is_headless {
+                    anyhow::bail!(
+                        "No API key found. Options:\n\
+                         - Set ANTHROPIC_API_KEY for Anthropic\n\
+                         - Set OPENAI_API_KEY for OpenAI\n\
+                         - Set GOOGLE_API_KEY for Google Gemini\n\
+                         - Set GROQ_API_KEY for Groq (fast, free tier available)\n\
+                         - Run `claurst --provider ollama` for local models (no key needed)\n\
+                         - Run `claurst auth login` for Anthropic OAuth"
+                    );
+                } else {
+                    (String::new(), false)
+                }
             }
         }
+    } else {
+        (String::new(), false)
     };
 
-    let client_config = claurst_api::client::ClientConfig {
+    let client_config = jet_api::client::ClientConfig {
         api_key: api_key.clone(),
-        api_base: config.resolve_api_base(),
+        api_base: config.resolve_anthropic_api_base(),
         use_bearer_auth,
         ..Default::default()
     };
     let client = Arc::new(
-        claurst_api::AnthropicClient::new(client_config.clone())
+        jet_api::AnthropicClient::new(client_config.clone())
             .context("Failed to create API client")?,
     );
 
@@ -605,8 +578,7 @@ async fn main() -> anyhow::Result<()> {
     // Anthropic is always the default; additional providers (OpenAI, Google,
     // Bedrock, Azure, Copilot, Cohere, local providers) are registered when
     // their respective environment variables or auth store entries are found.
-    let provider_registry =
-        claurst_api::ProviderRegistry::from_environment_with_auth_store(client_config);
+    let provider_registry = jet_api::ProviderRegistry::from_config(&config, client_config);
 
     let bridge_config = resolve_bridge_config(&settings, &api_key, use_bearer_auth, is_headless);
     if let Some(cfg) = bridge_config.as_ref() {
@@ -621,7 +593,7 @@ async fn main() -> anyhow::Result<()> {
     // Interactive mode uses InteractivePermissionHandler which allows writes in Default mode
     // (the user is watching the TUI so they can intervene). Headless/print mode uses
     // AutoPermissionHandler which denies writes in Default mode for safety.
-    let permission_handler: Arc<dyn claurst_core::PermissionHandler> = if is_headless {
+    let permission_handler: Arc<dyn jet_core::PermissionHandler> = if is_headless {
         Arc::new(AutoPermissionHandler {
             mode: config.permission_mode.clone(),
         })
@@ -637,7 +609,7 @@ async fn main() -> anyhow::Result<()> {
         .clone()
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let file_history = Arc::new(ParkingMutex::new(
-        claurst_core::file_history::FileHistory::new(),
+        jet_core::file_history::FileHistory::new(),
     ));
     let current_turn = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
@@ -655,6 +627,8 @@ async fn main() -> anyhow::Result<()> {
         non_interactive: cli.print || cli.prompt.is_some(),
         mcp_manager: mcp_manager_arc.clone(),
         config: config.clone(),
+        managed_agent_config: config.managed_agents.clone(),
+        completion_notifier: None,
     };
 
     // Register the cc-query-backed agent runner so TeamCreateTool can spawn real
@@ -663,7 +637,7 @@ async fn main() -> anyhow::Result<()> {
     // but we guard with a std::sync::OnceLock internally).
     {
         static SWARM_INIT: std::sync::OnceLock<()> = std::sync::OnceLock::new();
-        SWARM_INIT.get_or_init(|| claurst_query::init_team_swarm_runner());
+        SWARM_INIT.get_or_init(|| jet_query::init_team_swarm_runner());
     }
 
     // Build the full tool list: built-ins from cc-tools plus AgentTool from cc-query
@@ -673,7 +647,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Load plugins and register any plugin-provided MCP servers into the
     // in-memory config (does not modify the settings file on disk).
-    let plugin_registry = claurst_plugins::load_plugins(&cwd, &[]).await;
+    let plugin_registry = jet_plugins::load_plugins(&cwd, &[]).await;
     {
         let plugin_cmd_count = plugin_registry.all_command_defs().len();
         let plugin_hook_count = plugin_registry
@@ -690,11 +664,8 @@ async fn main() -> anyhow::Result<()> {
 
         // Register plugin MCP servers into the in-memory config so they are
         // picked up by any subsequent MCP manager construction.
-        let existing_names: std::collections::HashSet<String> = config
-            .mcp_servers
-            .iter()
-            .map(|s| s.name.clone())
-            .collect();
+        let existing_names: std::collections::HashSet<String> =
+            config.mcp_servers.iter().map(|s| s.name.clone()).collect();
         for mcp_server in plugin_registry.all_mcp_servers() {
             if !existing_names.contains(&mcp_server.name) {
                 config.mcp_servers.push(mcp_server);
@@ -708,7 +679,8 @@ async fn main() -> anyhow::Result<()> {
     let model_registry = load_cached_model_registry();
 
     // Build query config
-    let mut query_config = claurst_query::QueryConfig::from_config_with_registry(&config, &model_registry);
+    let mut query_config =
+        jet_query::QueryConfig::from_config_with_registry(&config, &model_registry);
     query_config.model_registry = Some(model_registry.clone());
     query_config.max_turns = cli.max_turns;
     query_config.system_prompt = Some(system_prompt);
@@ -718,10 +690,13 @@ async fn main() -> anyhow::Result<()> {
         query_config.thinking_budget = Some(tokens);
     }
     if let Some(ref level_str) = cli.effort {
-        if let Some(level) = claurst_core::effort::EffortLevel::from_str(level_str) {
+        if let Some(level) = jet_core::effort::EffortLevel::from_str(level_str) {
             query_config.effort_level = Some(level);
         } else {
-            eprintln!("Warning: unknown effort level '{}' — expected low/medium/high/max", level_str);
+            eprintln!(
+                "Warning: unknown effort level '{}' — expected low/medium/high/max",
+                level_str
+            );
         }
     }
     if let Some(usd) = cli.max_budget_usd {
@@ -738,7 +713,7 @@ async fn main() -> anyhow::Result<()> {
     // Merge built-in default agents with user-defined agents (user wins on collision).
     let tools = if let Some(ref agent_name) = cli.agent {
         query_config.agent_name = Some(agent_name.clone());
-        let mut all_agents = claurst_core::default_agents();
+        let mut all_agents = jet_core::default_agents();
         all_agents.extend(config.agents.clone());
         if let Some(def) = all_agents.get(agent_name) {
             let access = def.access.clone();
@@ -749,7 +724,10 @@ async fn main() -> anyhow::Result<()> {
             }
             filter_tools_for_agent(tools, &access)
         } else {
-            eprintln!("Warning: unknown agent '{}'. Run /agent to see available agents.", agent_name);
+            eprintln!(
+                "Warning: unknown agent '{}'. Run /agent to see available agents.",
+                agent_name
+            );
             tools
         }
     } else {
@@ -759,7 +737,7 @@ async fn main() -> anyhow::Result<()> {
     // Spawn the background cron scheduler (fires cron tasks at scheduled times).
     // Cancelled automatically when the process exits since we use a shared token.
     let cron_cancel = tokio_util::sync::CancellationToken::new();
-    claurst_query::start_cron_scheduler(
+    jet_query::start_cron_scheduler(
         client.clone(),
         tools.clone(),
         tool_ctx.clone(),
@@ -769,17 +747,13 @@ async fn main() -> anyhow::Result<()> {
 
     // --print mode (headless)
     let result = if is_headless {
-        run_headless(
-            &cli,
-            client,
-            tools,
-            tool_ctx,
-            query_config,
-            cost_tracker,
-        )
-        .await
+        run_headless(&cli, client, tools, tool_ctx, query_config, cost_tracker).await
     } else {
+        let auth_store = jet_core::AuthStore::load();
+        let has_saved_credentials = !auth_store.credentials.is_empty()
+            || jet_core::oauth_config::get_codex_tokens().is_some();
         let has_credentials = !api_key.is_empty()
+            || has_saved_credentials
             || config.provider.as_deref().is_some_and(|p| p != "anthropic");
         run_interactive(
             config,
@@ -801,23 +775,24 @@ async fn main() -> anyhow::Result<()> {
     result
 }
 
-async fn connect_mcp_manager_arc(
-    config: &Config,
-) -> Option<Arc<claurst_mcp::McpManager>> {
+async fn connect_mcp_manager_arc(config: &Config) -> Option<Arc<jet_mcp::McpManager>> {
     if config.mcp_servers.is_empty() {
         return None;
     }
 
-    info!(count = config.mcp_servers.len(), "Connecting to MCP servers");
-    let mcp_manager = claurst_mcp::McpManager::connect_all(&config.mcp_servers).await;
+    info!(
+        count = config.mcp_servers.len(),
+        "Connecting to MCP servers"
+    );
+    let mcp_manager = jet_mcp::McpManager::connect_all(&config.mcp_servers).await;
     Some(Arc::new(mcp_manager))
 }
 
 fn build_tools_with_mcp(
-    mcp_manager: Option<Arc<claurst_mcp::McpManager>>,
-) -> Arc<Vec<Box<dyn claurst_tools::Tool>>> {
-    let mut v: Vec<Box<dyn claurst_tools::Tool>> = claurst_tools::all_tools();
-    v.push(Box::new(claurst_query::AgentTool));
+    mcp_manager: Option<Arc<jet_mcp::McpManager>>,
+) -> Arc<Vec<Box<dyn jet_tools::Tool>>> {
+    let mut v: Vec<Box<dyn jet_tools::Tool>> = jet_tools::all_tools();
+    v.push(Box::new(jet_query::AgentTool));
 
     if let Some(ref manager_arc) = mcp_manager {
         for (server_name, tool_def) in manager_arc.all_tool_definitions() {
@@ -848,8 +823,8 @@ fn models_dev_cache_path() -> PathBuf {
     model_cache_dir().join("models_dev.json")
 }
 
-fn load_cached_model_registry() -> Arc<claurst_api::ModelRegistry> {
-    let mut reg = claurst_api::ModelRegistry::new();
+fn load_cached_model_registry() -> Arc<jet_api::ModelRegistry> {
+    let mut reg = jet_api::ModelRegistry::new();
     reg.load_cache(&models_cache_path());
     Arc::new(reg)
 }
@@ -868,7 +843,7 @@ fn spawn_models_cache_refresh() {
             .unwrap_or_else(|_| "https://models.dev/api.json".to_string());
         if let Ok(resp) = client
             .get(&url)
-            .header("User-Agent", "Claurst/0.0.8")
+            .header("User-Agent", "Claurst/0.0.9")
             .send()
             .await
         {
@@ -897,19 +872,19 @@ async fn remove_file_if_exists(path: &std::path::Path) -> anyhow::Result<()> {
 
 struct RefreshedProviderRuntime {
     config: Config,
-    client: Arc<claurst_api::AnthropicClient>,
-    provider_registry: Arc<claurst_api::ProviderRegistry>,
-    model_registry: Arc<claurst_api::ModelRegistry>,
-    auth_store: claurst_core::AuthStore,
+    client: Arc<jet_api::AnthropicClient>,
+    provider_registry: Arc<jet_api::ProviderRegistry>,
+    model_registry: Arc<jet_api::ModelRegistry>,
+    auth_store: jet_core::AuthStore,
 }
 
 async fn refresh_provider_runtime_state(
     current_config: &Config,
 ) -> anyhow::Result<RefreshedProviderRuntime> {
-    remove_file_if_exists(&claurst_core::AuthStore::path())
+    remove_file_if_exists(&jet_core::AuthStore::path())
         .await
         .context("Failed to clear auth store")?;
-    remove_file_if_exists(&claurst_core::oauth::OAuthTokens::token_file_path())
+    remove_file_if_exists(&jet_core::oauth::OAuthTokens::token_file_path())
         .await
         .context("Failed to clear OAuth token cache")?;
     remove_file_if_exists(&models_cache_path())
@@ -937,22 +912,23 @@ async fn refresh_provider_runtime_state(
     config.model = None;
 
     let (api_key, use_bearer_auth) = config
-        .resolve_auth_async()
+        .resolve_anthropic_auth_async()
         .await
         .unwrap_or((String::new(), false));
-    let client_config = claurst_api::client::ClientConfig {
+    let client_config = jet_api::client::ClientConfig {
         api_key,
-        api_base: config.resolve_api_base(),
+        api_base: config.resolve_anthropic_api_base(),
         use_bearer_auth,
         ..Default::default()
     };
     let client = Arc::new(
-        claurst_api::AnthropicClient::new(client_config.clone())
+        jet_api::AnthropicClient::new(client_config.clone())
             .context("Failed to rebuild Anthropic client")?,
     );
-    let provider_registry = Arc::new(
-        claurst_api::ProviderRegistry::from_environment_with_auth_store(client_config),
-    );
+    let provider_registry = Arc::new(jet_api::ProviderRegistry::from_config(
+        &config,
+        client_config,
+    ));
     let model_registry = load_cached_model_registry();
 
     spawn_models_cache_refresh();
@@ -962,8 +938,16 @@ async fn refresh_provider_runtime_state(
         client,
         provider_registry,
         model_registry,
-        auth_store: claurst_core::AuthStore::default(),
+        auth_store: jet_core::AuthStore::default(),
     })
+}
+
+fn normalize_provider_from_model(config: &mut Config) {
+    if let Some(model) = config.model.as_deref() {
+        if let Some((provider, _)) = model.split_once('/') {
+            config.provider = Some(provider.to_string());
+        }
+    }
 }
 
 /// Filter the tool list based on the agent's access level.
@@ -971,10 +955,10 @@ async fn refresh_provider_runtime_state(
 /// - "read-only"   → only ReadOnly/None permission tools and AskUserQuestion
 /// - "search-only" → only Grep, Glob, Read, WebSearch, WebFetch tools
 fn filter_tools_for_agent(
-    tools: Arc<Vec<Box<dyn claurst_tools::Tool>>>,
+    tools: Arc<Vec<Box<dyn jet_tools::Tool>>>,
     access: &str,
-) -> Arc<Vec<Box<dyn claurst_tools::Tool>>> {
-    use claurst_tools::PermissionLevel as PL;
+) -> Arc<Vec<Box<dyn jet_tools::Tool>>> {
+    use jet_tools::PermissionLevel as PL;
     match access {
         "read-only" => {
             // Collect names of tools that are read-only, then rebuild from all_tools
@@ -987,7 +971,7 @@ fn filter_tools_for_agent(
                 })
                 .map(|t| t.name().to_string())
                 .collect();
-            let filtered: Vec<Box<dyn claurst_tools::Tool>> = claurst_tools::all_tools()
+            let filtered: Vec<Box<dyn jet_tools::Tool>> = jet_tools::all_tools()
                 .into_iter()
                 .filter(|t| allowed_names.iter().any(|n| n == t.name()))
                 .collect();
@@ -995,7 +979,7 @@ fn filter_tools_for_agent(
         }
         "search-only" => {
             const SEARCH_TOOLS: &[&str] = &["Grep", "Glob", "Read", "WebSearch", "WebFetch"];
-            let filtered: Vec<Box<dyn claurst_tools::Tool>> = claurst_tools::all_tools()
+            let filtered: Vec<Box<dyn jet_tools::Tool>> = jet_tools::all_tools()
                 .into_iter()
                 .filter(|t| SEARCH_TOOLS.contains(&t.name()))
                 .collect();
@@ -1011,13 +995,13 @@ fn filter_tools_for_agent(
 
 async fn run_headless(
     cli: &Cli,
-    client: Arc<claurst_api::AnthropicClient>,
-    tools: Arc<Vec<Box<dyn claurst_tools::Tool>>>,
+    client: Arc<jet_api::AnthropicClient>,
+    tools: Arc<Vec<Box<dyn jet_tools::Tool>>>,
     tool_ctx: ToolContext,
-    query_config: claurst_query::QueryConfig,
+    query_config: jet_query::QueryConfig,
     cost_tracker: Arc<CostTracker>,
 ) -> anyhow::Result<()> {
-    use claurst_query::{QueryEvent, QueryOutcome};
+    use jet_query::{QueryEvent, QueryOutcome};
     use tokio::sync::mpsc;
     use tokio_util::sync::CancellationToken;
 
@@ -1025,72 +1009,78 @@ async fn run_headless(
     // --input-format stream-json: stdin is newline-delimited JSON, each line is
     //   {"role":"user"|"assistant","content":"..."} (mirrors TS --input-format stream-json).
     // --input-format text (default): read prompt from positional arg or entire stdin as text.
-    let mut messages: Vec<claurst_core::types::Message> = if cli.input_format == CliInputFormat::StreamJson {
-        use tokio::io::{self, AsyncBufReadExt, BufReader};
-        let stdin = io::stdin();
-        let mut reader = BufReader::new(stdin);
-        let mut line = String::new();
-        let mut parsed: Vec<claurst_core::types::Message> = Vec::new();
-        loop {
-            line.clear();
-            let n = reader.read_line(&mut line).await?;
-            if n == 0 {
-                break;
-            }
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            match serde_json::from_str::<serde_json::Value>(trimmed) {
-                Ok(v) => {
-                    let role = v.get("role").and_then(|r| r.as_str()).unwrap_or("user");
-                    let content = v
-                        .get("content")
-                        .and_then(|c| c.as_str())
-                        .unwrap_or("")
-                        .to_string();
-                    if role == "assistant" {
-                        parsed.push(claurst_core::types::Message::assistant(content));
-                    } else {
-                        parsed.push(claurst_core::types::Message::user(content));
+    let mut messages: Vec<jet_core::types::Message> =
+        if cli.input_format == CliInputFormat::StreamJson {
+            use tokio::io::{self, AsyncBufReadExt, BufReader};
+            let stdin = io::stdin();
+            let mut reader = BufReader::new(stdin);
+            let mut line = String::new();
+            let mut parsed: Vec<jet_core::types::Message> = Vec::new();
+            loop {
+                line.clear();
+                let n = reader.read_line(&mut line).await?;
+                if n == 0 {
+                    break;
+                }
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                match serde_json::from_str::<serde_json::Value>(trimmed) {
+                    Ok(v) => {
+                        let role = v.get("role").and_then(|r| r.as_str()).unwrap_or("user");
+                        let content = v
+                            .get("content")
+                            .and_then(|c| c.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        if role == "assistant" {
+                            parsed.push(jet_core::types::Message::assistant(content));
+                        } else {
+                            parsed.push(jet_core::types::Message::user(content));
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: skipping malformed JSON line: {} ({:?})",
+                            trimmed, e
+                        );
                     }
                 }
-                Err(e) => {
-                    eprintln!("Warning: skipping malformed JSON line: {} ({:?})", trimmed, e);
+            }
+            if parsed.is_empty() {
+                // Also check positional arg as fallback
+                if let Some(ref p) = cli.prompt {
+                    parsed.push(jet_core::types::Message::user(p.clone()));
                 }
             }
-        }
-        if parsed.is_empty() {
-            // Also check positional arg as fallback
-            if let Some(ref p) = cli.prompt {
-                parsed.push(claurst_core::types::Message::user(p.clone()));
-            }
-        }
-        parsed
-    } else {
-        // Plain text mode
-        let prompt = if let Some(ref p) = cli.prompt {
-            p.clone()
+            parsed
         } else {
-            use tokio::io::{self, AsyncReadExt};
-            let mut stdin = io::stdin();
-            let mut buf = String::new();
-            stdin.read_to_string(&mut buf).await?;
-            buf.trim().to_string()
+            // Plain text mode
+            let prompt = if let Some(ref p) = cli.prompt {
+                p.clone()
+            } else {
+                use tokio::io::{self, AsyncReadExt};
+                let mut stdin = io::stdin();
+                let mut buf = String::new();
+                stdin.read_to_string(&mut buf).await?;
+                buf.trim().to_string()
+            };
+
+            if prompt.is_empty() {
+                eprintln!("Error: No prompt provided. Use --print <prompt> or pipe text to stdin.");
+                std::process::exit(1);
+            }
+
+            vec![jet_core::types::Message::user(prompt)]
         };
-
-        if prompt.is_empty() {
-            eprintln!("Error: No prompt provided. Use --print <prompt> or pipe text to stdin.");
-            std::process::exit(1);
-        }
-
-        vec![claurst_core::types::Message::user(prompt)]
-    };
 
     // --prefill: inject a partial assistant turn before the query so the model
     // continues from that text (mirrors TS --prefill flag).
     if let Some(ref prefill_text) = cli.prefill {
-        messages.push(claurst_core::types::Message::assistant(prefill_text.clone()));
+        messages.push(jet_core::types::Message::assistant(
+            prefill_text.clone(),
+        ));
     }
 
     if messages.is_empty() {
@@ -1098,7 +1088,10 @@ async fn run_headless(
         std::process::exit(1);
     }
 
-    let is_json_output = matches!(cli.output_format, CliOutputFormat::Json | CliOutputFormat::StreamJson);
+    let is_json_output = matches!(
+        cli.output_format,
+        CliOutputFormat::Json | CliOutputFormat::StreamJson
+    );
     let is_stream_json = matches!(cli.output_format, CliOutputFormat::StreamJson);
 
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<QueryEvent>();
@@ -1111,7 +1104,7 @@ async fn run_headless(
     let cancel_clone = cancel.clone();
 
     let query_handle = tokio::spawn(async move {
-        claurst_query::run_query_loop(
+        jet_query::run_query_loop(
             client_clone.as_ref(),
             &mut messages,
             tools.as_slice(),
@@ -1133,8 +1126,8 @@ async fn run_headless(
 
     while let Some(event) = event_rx.recv().await {
         match &event {
-            QueryEvent::Stream(claurst_api::AnthropicStreamEvent::ContentBlockDelta {
-                delta: claurst_api::streaming::ContentDelta::TextDelta { text },
+            QueryEvent::Stream(jet_api::AnthropicStreamEvent::ContentBlockDelta {
+                delta: jet_api::streaming::ContentDelta::TextDelta { text },
                 ..
             }) => {
                 full_text.push_str(text);
@@ -1169,40 +1162,38 @@ async fn run_headless(
 
     // Wait for the query task to finish and get the final outcome
     let outcome = query_handle.await.unwrap_or(QueryOutcome::Error(
-        claurst_core::error::ClaudeError::Other("Query task panicked".to_string()),
+        jet_core::error::ClaudeError::Other("Query task panicked".to_string()),
     ));
 
     // Final output
     match cli.output_format {
-        CliOutputFormat::Json => {
-            match outcome {
-                QueryOutcome::EndTurn { message, usage } => {
-                    let result_text = if full_text.is_empty() {
-                        message.get_all_text()
-                    } else {
-                        full_text
-                    };
-                    let out = serde_json::json!({
-                        "type": "result",
-                        "result": result_text,
-                        "usage": {
-                            "input_tokens": usage.input_tokens,
-                            "output_tokens": usage.output_tokens,
-                            "cache_creation_input_tokens": usage.cache_creation_input_tokens,
-                            "cache_read_input_tokens": usage.cache_read_input_tokens,
-                        },
-                        "cost_usd": cost_tracker.total_cost_usd(),
-                    });
-                    println!("{}", out);
-                }
-                QueryOutcome::Error(e) => {
-                    let out = serde_json::json!({ "type": "error", "error": e.to_string() });
-                    eprintln!("{}", out);
-                    std::process::exit(1);
-                }
-                _ => {}
+        CliOutputFormat::Json => match outcome {
+            QueryOutcome::EndTurn { message, usage } => {
+                let result_text = if full_text.is_empty() {
+                    message.get_all_text()
+                } else {
+                    full_text
+                };
+                let out = serde_json::json!({
+                    "type": "result",
+                    "result": result_text,
+                    "usage": {
+                        "input_tokens": usage.input_tokens,
+                        "output_tokens": usage.output_tokens,
+                        "cache_creation_input_tokens": usage.cache_creation_input_tokens,
+                        "cache_read_input_tokens": usage.cache_read_input_tokens,
+                    },
+                    "cost_usd": cost_tracker.total_cost_usd(),
+                });
+                println!("{}", out);
             }
-        }
+            QueryOutcome::Error(e) => {
+                let out = serde_json::json!({ "type": "error", "error": e.to_string() });
+                eprintln!("{}", out);
+                std::process::exit(1);
+            }
+            _ => {}
+        },
         CliOutputFormat::StreamJson => {
             // Already streamed above; emit final result event
             match outcome {
@@ -1241,7 +1232,10 @@ async fn run_headless(
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
-                QueryOutcome::BudgetExceeded { cost_usd, limit_usd } => {
+                QueryOutcome::BudgetExceeded {
+                    cost_usd,
+                    limit_usd,
+                } => {
                     eprintln!(
                         "Budget limit ${:.4} reached (spent ${:.4}). Stopping.",
                         limit_usd, cost_usd
@@ -1262,24 +1256,23 @@ async fn run_headless(
 
 async fn run_interactive(
     config: Config,
-    settings: claurst_core::config::Settings,
-    client: Arc<claurst_api::AnthropicClient>,
-    tools: Arc<Vec<Box<dyn claurst_tools::Tool>>>,
+    settings: jet_core::config::Settings,
+    client: Arc<jet_api::AnthropicClient>,
+    tools: Arc<Vec<Box<dyn jet_tools::Tool>>>,
     tool_ctx: ToolContext,
-    query_config: claurst_query::QueryConfig,
+    query_config: jet_query::QueryConfig,
     cost_tracker: Arc<CostTracker>,
     resume_id: Option<String>,
-    bridge_config: Option<claurst_bridge::BridgeConfig>,
+    bridge_config: Option<jet_bridge::BridgeConfig>,
     has_credentials: bool,
-    model_registry: Arc<claurst_api::ModelRegistry>,
+    model_registry: Arc<jet_api::ModelRegistry>,
 ) -> anyhow::Result<()> {
-    use claurst_commands::{execute_command, CommandContext, CommandResult};
-    use claurst_bridge::{BridgeOutbound, TuiBridgeEvent};
-    use claurst_query::{QueryEvent, QueryOutcome};
-    use claurst_tui::{
-        bridge_state::BridgeConnectionState, notifications::NotificationKind,
-        render::render_app, restore_terminal, setup_terminal, App,
-        device_auth_dialog::DeviceAuthEvent,
+    use jet_bridge::{BridgeOutbound, TuiBridgeEvent};
+    use jet_commands::{execute_command, CommandContext, CommandResult};
+    use jet_query::{QueryEvent, QueryOutcome};
+    use jet_tui::{
+        bridge_state::BridgeConnectionState, device_auth_dialog::DeviceAuthEvent,
+        notifications::NotificationKind, render::render_app, restore_terminal, setup_terminal, App,
     };
     use crossterm::event::{self, Event, KeyCode};
     use std::time::Duration;
@@ -1290,7 +1283,7 @@ async fn run_interactive(
     let mut model_registry = model_registry;
     let mut tool_ctx = tool_ctx;
     let mut session = if let Some(ref id) = resume_id {
-        match claurst_core::history::load_session(id).await {
+        match jet_core::history::load_session(id).await {
             Ok(session) => {
                 println!("Resumed session: {}", id);
                 if let Some(saved_dir) = session.working_dir.as_ref() {
@@ -1304,20 +1297,18 @@ async fn run_interactive(
             }
             Err(e) => {
                 eprintln!("Warning: could not load session {}: {}", id, e);
-                let mut session =
-                    claurst_core::history::ConversationSession::new(
-                        claurst_api::effective_model_for_config(&config, &model_registry),
-                    );
+                let mut session = jet_core::history::ConversationSession::new(
+                    jet_api::effective_model_for_config(&config, &model_registry),
+                );
                 session.id = tool_ctx.session_id.clone();
                 session.working_dir = Some(tool_ctx.working_dir.display().to_string());
                 session
             }
         }
     } else {
-        let mut session =
-            claurst_core::history::ConversationSession::new(
-                claurst_api::effective_model_for_config(&config, &model_registry),
-            );
+        let mut session = jet_core::history::ConversationSession::new(
+            jet_api::effective_model_for_config(&config, &model_registry),
+        );
         session.id = tool_ctx.session_id.clone();
         session.working_dir = Some(tool_ctx.working_dir.display().to_string());
         session
@@ -1335,12 +1326,12 @@ async fn run_interactive(
     let mut app = App::new(live_config.clone(), cost_tracker.clone());
     // Sync initial effort level (from --effort flag or /effort command) to TUI indicator.
     if let Some(level) = base_query_config.effort_level {
-        use claurst_tui::EffortLevel as TuiEL;
+        use jet_tui::EffortLevel as TuiEL;
         app.effort_level = match level {
-            claurst_core::effort::EffortLevel::Low    => TuiEL::Low,
-            claurst_core::effort::EffortLevel::Medium => TuiEL::Normal,
-            claurst_core::effort::EffortLevel::High   => TuiEL::High,
-            claurst_core::effort::EffortLevel::Max    => TuiEL::Max,
+            jet_core::effort::EffortLevel::Low => TuiEL::Low,
+            jet_core::effort::EffortLevel::Medium => TuiEL::Normal,
+            jet_core::effort::EffortLevel::High => TuiEL::High,
+            jet_core::effort::EffortLevel::Max => TuiEL::Max,
         };
     }
     app.provider_registry = base_query_config.provider_registry.clone();
@@ -1392,16 +1383,17 @@ async fn run_interactive(
         if !settings.has_completed_onboarding {
             app.onboarding_dialog.show();
         } else {
-            app.status_message = Some("No provider configured. Run /connect to set one up.".to_string());
+            app.status_message =
+                Some("No provider configured. Run /connect to set one up.".to_string());
         }
     } else if !settings.has_completed_onboarding {
         // User has credentials but hasn't formally completed onboarding — mark it done
         // silently so they never see it.
-        let _ = claurst_tui::App::persist_onboarding_complete_pub();
+        let _ = jet_tui::App::persist_onboarding_complete_pub();
     }
 
     // Mirror TS BypassPermissionsModeDialog.tsx startup gate
-    use claurst_core::config::PermissionMode;
+    use jet_core::config::PermissionMode;
     if live_config.permission_mode == PermissionMode::BypassPermissions {
         app.bypass_permissions_dialog.show();
     }
@@ -1409,12 +1401,12 @@ async fn run_interactive(
     // Version-upgrade notice: record the current version for future comparisons.
     // (Actual upgrade notice UI is handled by the release-notes slash command.)
     {
-        let current_version = claurst_core::constants::APP_VERSION.to_string();
+        let current_version = jet_core::constants::APP_VERSION.to_string();
         if settings.last_seen_version.as_deref() != Some(&current_version) {
             // Persist asynchronously to avoid blocking startup.
             let version_clone = current_version.clone();
             tokio::spawn(async move {
-                if let Ok(mut s) = claurst_core::config::Settings::load().await {
+                if let Ok(mut s) = jet_core::config::Settings::load().await {
                     s.last_seen_version = Some(version_clone);
                     let _ = s.save().await;
                 }
@@ -1466,9 +1458,7 @@ async fn run_interactive(
 
     // Preserve the bridge token before consuming bridge_config so we can reconstruct
     // a BridgeSessionInfo once the bridge worker reports it has connected.
-    let bridge_token: Option<String> = bridge_config
-        .as_ref()
-        .and_then(|c| c.session_token.clone());
+    let bridge_token: Option<String> = bridge_config.as_ref().and_then(|c| c.session_token.clone());
 
     let mut bridge_runtime: Option<BridgeRuntime> = if let Some(cfg) = bridge_config {
         let bridge_cancel = CancellationToken::new();
@@ -1480,7 +1470,9 @@ async fn run_interactive(
 
         let cancel_clone = bridge_cancel.clone();
         tokio::spawn(async move {
-            if let Err(e) = claurst_bridge::run_bridge_loop(cfg, tui_tx, outbound_rx, cancel_clone).await {
+            if let Err(e) =
+                jet_bridge::run_bridge_loop(cfg, tui_tx, outbound_rx, cancel_clone).await
+            {
                 warn!("Bridge loop exited with error: {}", e);
             }
         });
@@ -1509,7 +1501,7 @@ async fn run_interactive(
 
     // Once the bridge worker reports Connected we build this from the session
     // credentials so both relay tasks can POST/poll the /api/bridge/sessions API.
-    let mut bridge_session_info: Option<std::sync::Arc<claurst_bridge::BridgeSessionInfo>> = None;
+    let mut bridge_session_info: Option<std::sync::Arc<jet_bridge::BridgeSessionInfo>> = None;
 
     let mut messages = initial_messages;
     let mut cmd_ctx = CommandContext {
@@ -1525,23 +1517,23 @@ async fn run_interactive(
 
     // tools is already Arc<Vec<...>> — share it across spawned tasks without copying.
     // Keep the full unfiltered tool set so agent-mode switching can re-filter.
-    let all_tools_arc: Arc<Vec<Box<dyn claurst_tools::Tool>>> =
-        Arc::new(claurst_tools::all_tools());
+    let all_tools_arc: Arc<Vec<Box<dyn jet_tools::Tool>>> =
+        Arc::new(jet_tools::all_tools());
     let mut tools_arc = tools;
 
     // Current cancel token (replaced each turn)
     let mut cancel: Option<CancellationToken> = None;
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<QueryEvent>();
-    type MessagesArc = Arc<tokio::sync::Mutex<Vec<claurst_core::types::Message>>>;
+    type MessagesArc = Arc<tokio::sync::Mutex<Vec<jet_core::types::Message>>>;
     let mut current_query: Option<(tokio::task::JoinHandle<QueryOutcome>, MessagesArc)> = None;
     // Active effort level (None = use model default / High).
     // Tracks the user's /effort selection; flows into qcfg each turn.
-    let mut current_effort: Option<claurst_core::effort::EffortLevel> = None;
+    let mut current_effort: Option<jet_core::effort::EffortLevel> = None;
 
     // Background update check: spawned once at startup; result delivered via channel.
     let (update_tx, mut update_rx) = tokio::sync::mpsc::channel::<Option<String>>(1);
     tokio::spawn(async move {
-        let info = claurst_core::check_for_updates().await;
+        let info = jet_core::check_for_updates().await;
         let version = info.map(|i| i.latest_version);
         let _ = update_tx.send(version).await;
     });
@@ -1553,6 +1545,7 @@ async fn run_interactive(
     'main: loop {
         app.frame_count = app.frame_count.wrapping_add(1);
         app.tick_rustle_pose();
+        app.notifications.tick();
 
         // Draw the UI
         terminal.draw(|f| render_app(f, &app))?;
@@ -1570,10 +1563,13 @@ async fn run_interactive(
 
                     // Ctrl+C: copy selected text if there's a selection, otherwise cancel/quit
                     if key.code == KeyCode::Char('c')
-                        && key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                        && key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::CONTROL)
                     {
                         // Check if there's an active text selection — copy instead of cancel/quit
-                        let has_selection = app.selection_anchor.is_some() && !app.selection_text.borrow().is_empty();
+                        let has_selection = app.selection_anchor.is_some()
+                            && !app.selection_text.borrow().is_empty();
                         if has_selection {
                             // Let the app handle the copy via its normal key handler
                             app.handle_key_event(key);
@@ -1595,7 +1591,9 @@ async fn run_interactive(
 
                     // Ctrl+D on empty input => quit
                     if key.code == KeyCode::Char('d')
-                        && key.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                        && key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::CONTROL)
                         && app.prompt_input.is_empty()
                     {
                         break 'main;
@@ -1649,7 +1647,7 @@ async fn run_interactive(
                         // Check for slash command
                         if input.starts_with('/') {
                             let (cmd_name, cmd_args) =
-                                claurst_tui::input::parse_slash_command(&input);
+                                jet_tui::input::parse_slash_command(&input);
                             let cmd_name = cmd_name.to_string();
                             let cmd_args = cmd_args.to_string();
 
@@ -1667,8 +1665,15 @@ async fn run_interactive(
                             let skip_tui_for_args = !cmd_args.is_empty()
                                 && matches!(
                                     cmd_name.as_str(),
-                                    "model" | "theme" | "resume" | "session"
-                                        | "vim" | "vi" | "voice" | "fast" | "speed"
+                                    "model"
+                                        | "theme"
+                                        | "resume"
+                                        | "session"
+                                        | "vim"
+                                        | "vi"
+                                        | "voice"
+                                        | "fast"
+                                        | "speed"
                                 );
                             let handled_by_tui = if skip_tui_for_args {
                                 false
@@ -1680,14 +1685,18 @@ async fn run_interactive(
                             // (no-args /effort → cycle Low→Med→High→Max→Low).
                             if handled_by_tui && cmd_name == "effort" && cmd_args.is_empty() {
                                 current_effort = Some(match app.effort_level {
-                                    claurst_tui::EffortLevel::Low =>
-                                        claurst_core::effort::EffortLevel::Low,
-                                    claurst_tui::EffortLevel::Normal =>
-                                        claurst_core::effort::EffortLevel::Medium,
-                                    claurst_tui::EffortLevel::High =>
-                                        claurst_core::effort::EffortLevel::High,
-                                    claurst_tui::EffortLevel::Max =>
-                                        claurst_core::effort::EffortLevel::Max,
+                                    jet_tui::EffortLevel::Low => {
+                                        jet_core::effort::EffortLevel::Low
+                                    }
+                                    jet_tui::EffortLevel::Normal => {
+                                        jet_core::effort::EffortLevel::Medium
+                                    }
+                                    jet_tui::EffortLevel::High => {
+                                        jet_core::effort::EffortLevel::High
+                                    }
+                                    jet_tui::EffortLevel::Max => {
+                                        jet_core::effort::EffortLevel::Max
+                                    }
                                 });
                             }
 
@@ -1715,12 +1724,10 @@ async fn run_interactive(
                                     app.replace_messages(Vec::new());
                                     session.messages.clear();
                                     session.updated_at = chrono::Utc::now();
-                                    app.status_message =
-                                        Some("Conversation cleared.".to_string());
+                                    app.status_message = Some("Conversation cleared.".to_string());
                                 }
                                 Some(CommandResult::SetMessages(new_msgs)) => {
-                                    let removed =
-                                        messages.len().saturating_sub(new_msgs.len());
+                                    let removed = messages.len().saturating_sub(new_msgs.len());
                                     messages = new_msgs.clone();
                                     app.replace_messages(new_msgs);
                                     session.messages = messages.clone();
@@ -1757,46 +1764,36 @@ async fn run_interactive(
                                     app.model_name = session.model.clone();
                                     tool_ctx.session_id = session.id.clone();
                                     tool_ctx.file_history = Arc::new(ParkingMutex::new(
-                                        claurst_core::file_history::FileHistory::new(),
+                                        jet_core::file_history::FileHistory::new(),
                                     ));
-                                    tool_ctx.current_turn = Arc::new(
-                                        std::sync::atomic::AtomicUsize::new(0),
-                                    );
+                                    tool_ctx.current_turn =
+                                        Arc::new(std::sync::atomic::AtomicUsize::new(0));
                                     cmd_ctx.session_id = session.id.clone();
                                     cmd_ctx.session_title = session.title.clone();
                                     if let Some(saved_dir) = session.working_dir.as_ref() {
-                                        let saved_path =
-                                            std::path::PathBuf::from(saved_dir);
+                                        let saved_path = std::path::PathBuf::from(saved_dir);
                                         if saved_path.exists() {
                                             tool_ctx.working_dir = saved_path.clone();
                                             cmd_ctx.working_dir = saved_path;
                                         }
                                     }
-                                    app.config.project_dir =
-                                        Some(tool_ctx.working_dir.clone());
+                                    app.config.project_dir = Some(tool_ctx.working_dir.clone());
                                     app.attach_turn_diff_state(
                                         tool_ctx.file_history.clone(),
                                         tool_ctx.current_turn.clone(),
                                     );
-                                    claurst_tui::update_terminal_title(
-                                        session.title.as_deref(),
-                                    );
-                                    app.status_message = Some(format!(
-                                        "Resumed session {}.",
-                                        &session.id[..8]
-                                    ));
+                                    jet_tui::update_terminal_title(session.title.as_deref());
+                                    app.status_message =
+                                        Some(format!("Resumed session {}.", &session.id[..8]));
                                 }
                                 Some(CommandResult::RenameSession(title)) => {
                                     session.title = Some(title.clone());
                                     session.updated_at = chrono::Utc::now();
                                     cmd_ctx.session_title = session.title.clone();
-                                    let _ =
-                                        claurst_core::history::save_session(&session).await;
-                                    claurst_tui::update_terminal_title(Some(&title));
-                                    app.status_message = Some(format!(
-                                        "Session renamed to \"{}\".",
-                                        title
-                                    ));
+                                    let _ = jet_core::history::save_session(&session).await;
+                                    jet_tui::update_terminal_title(Some(&title));
+                                    app.status_message =
+                                        Some(format!("Session renamed to \"{}\".", title));
                                 }
                                 Some(CommandResult::RefreshProviderState) => {
                                     if app.is_streaming || current_query.is_some() {
@@ -1805,7 +1802,8 @@ async fn run_interactive(
                                                 .to_string(),
                                         );
                                     } else {
-                                        match refresh_provider_runtime_state(&cmd_ctx.config).await {
+                                        match refresh_provider_runtime_state(&cmd_ctx.config).await
+                                        {
                                             Ok(refreshed) => {
                                                 cmd_ctx.config = refreshed.config.clone();
                                                 tool_ctx.config = refreshed.config.clone();
@@ -1814,14 +1812,14 @@ async fn run_interactive(
                                                 base_query_config.model_registry =
                                                     Some(refreshed.model_registry.clone());
                                                 base_query_config.model =
-                                                    claurst_api::effective_model_for_config(
+                                                    jet_api::effective_model_for_config(
                                                         &cmd_ctx.config,
                                                         refreshed.model_registry.as_ref(),
                                                     );
                                                 client = refreshed.client;
                                                 model_registry = refreshed.model_registry;
                                                 session.model =
-                                                    claurst_api::effective_model_for_config(
+                                                    jet_api::effective_model_for_config(
                                                         &cmd_ctx.config,
                                                         model_registry.as_ref(),
                                                     );
@@ -1836,10 +1834,8 @@ async fn run_interactive(
                                                 );
                                             }
                                             Err(err) => {
-                                                app.status_message = Some(format!(
-                                                    "Error: {}",
-                                                    err
-                                                ));
+                                                app.status_message =
+                                                    Some(format!("Error: {}", err));
                                             }
                                         }
                                     }
@@ -1854,44 +1850,56 @@ async fn run_interactive(
                                     // overlay for this command (e.g. /stats opens dialog
                                     // AND would push a text message — drop the text).
                                     if !handled_by_tui {
-                                        app.push_message(
-                                            claurst_core::types::Message::assistant(msg),
-                                        );
+                                        app.push_message(jet_core::types::Message::assistant(
+                                            msg,
+                                        ));
                                     }
                                 }
                                 Some(CommandResult::ConfigChange(new_cfg)) => {
-                                    cmd_ctx.config = new_cfg.clone();
-                                    tool_ctx.config = new_cfg.clone();
-                                    app.config = new_cfg.clone();
-                                    // Sync model name shown in the TUI header.
-                                    if let Some(ref model) = new_cfg.model {
-                                        app.model_name = model.clone();
+                                    let mut applied_cfg = new_cfg;
+                                    normalize_provider_from_model(&mut applied_cfg);
+                                    cmd_ctx.config = applied_cfg.clone();
+                                    tool_ctx.config = applied_cfg.clone();
+                                    app.config = applied_cfg.clone();
+                                    // Sync model/provider shown in the TUI header.
+                                    if let Some(ref model) = applied_cfg.model {
+                                        app.set_model(model.clone());
                                     }
                                     // Sync fast_mode visual indicator.
-                                    app.fast_mode = new_cfg.model
+                                    app.fast_mode = applied_cfg
+                                        .model
                                         .as_deref()
                                         .map(|m| m.contains("haiku"))
                                         .unwrap_or(false);
                                     // Sync plan_mode visual indicator.
                                     app.plan_mode = matches!(
-                                        new_cfg.permission_mode,
-                                        claurst_core::config::PermissionMode::Plan
+                                        applied_cfg.permission_mode,
+                                        jet_core::config::PermissionMode::Plan
                                     );
-                                    app.status_message =
-                                        Some("Configuration updated.".to_string());
+                                    session.model = jet_api::effective_model_for_config(
+                                        &cmd_ctx.config,
+                                        &model_registry,
+                                    );
+                                    app.status_message = Some("Configuration updated.".to_string());
                                 }
                                 Some(CommandResult::ConfigChangeMessage(new_cfg, msg)) => {
-                                    cmd_ctx.config = new_cfg.clone();
-                                    tool_ctx.config = new_cfg.clone();
-                                    // Sync model name + fast_mode visual indicator.
-                                    if let Some(ref model) = new_cfg.model {
-                                        app.model_name = model.clone();
+                                    let mut applied_cfg = new_cfg;
+                                    normalize_provider_from_model(&mut applied_cfg);
+                                    cmd_ctx.config = applied_cfg.clone();
+                                    tool_ctx.config = applied_cfg.clone();
+                                    // Sync model/provider + fast_mode visual indicator.
+                                    if let Some(ref model) = applied_cfg.model {
+                                        app.set_model(model.clone());
                                         app.fast_mode = model.contains("haiku");
                                     } else {
                                         // model reset to None means fast mode off.
                                         app.fast_mode = false;
                                     }
-                                    app.config = new_cfg;
+                                    app.config = applied_cfg.clone();
+                                    session.model = jet_api::effective_model_for_config(
+                                        &cmd_ctx.config,
+                                        &model_registry,
+                                    );
                                     app.status_message = Some(msg);
                                 }
                                 Some(CommandResult::UserMessage(msg)) => {
@@ -1899,12 +1907,8 @@ async fn run_interactive(
                                     submit_user_msg = Some(msg);
                                 }
                                 Some(CommandResult::StartOAuthFlow(with_claude_ai)) => {
-                                    claurst_tui::restore_terminal(&mut terminal).ok();
-                                    match oauth_flow::run_oauth_login_flow(
-                                        with_claude_ai,
-                                    )
-                                    .await
-                                    {
+                                    jet_tui::restore_terminal(&mut terminal).ok();
+                                    match oauth_flow::run_oauth_login_flow(with_claude_ai).await {
                                         Ok(_) => {
                                             app.status_message =
                                                 Some("Login successful!".to_string());
@@ -1918,7 +1922,7 @@ async fn run_interactive(
                                             eprintln!("\nLogin failed: {}", e);
                                         }
                                     }
-                                    terminal = claurst_tui::setup_terminal()?;
+                                    terminal = jet_tui::setup_terminal()?;
                                 }
                                 Some(CommandResult::Error(e)) => {
                                     app.status_message = Some(format!("Error: {}", e));
@@ -1930,23 +1934,24 @@ async fn run_interactive(
 
                             // Sync effort visual + API level when CLI handled
                             // /effort with explicit args (/effort high).
-                            if handled_by_cli
-                                && cmd_name == "effort"
-                                && !cmd_args.is_empty()
-                            {
+                            if handled_by_cli && cmd_name == "effort" && !cmd_args.is_empty() {
                                 if let Some(level) =
-                                    claurst_core::effort::EffortLevel::from_str(&cmd_args)
+                                    jet_core::effort::EffortLevel::from_str(&cmd_args)
                                 {
                                     current_effort = Some(level);
                                     app.effort_level = match level {
-                                        claurst_core::effort::EffortLevel::Low =>
-                                            claurst_tui::EffortLevel::Low,
-                                        claurst_core::effort::EffortLevel::Medium =>
-                                            claurst_tui::EffortLevel::Normal,
-                                        claurst_core::effort::EffortLevel::High =>
-                                            claurst_tui::EffortLevel::High,
-                                        claurst_core::effort::EffortLevel::Max =>
-                                            claurst_tui::EffortLevel::Max,
+                                        jet_core::effort::EffortLevel::Low => {
+                                            jet_tui::EffortLevel::Low
+                                        }
+                                        jet_core::effort::EffortLevel::Medium => {
+                                            jet_tui::EffortLevel::Normal
+                                        }
+                                        jet_core::effort::EffortLevel::High => {
+                                            jet_tui::EffortLevel::High
+                                        }
+                                        jet_core::effort::EffortLevel::Max => {
+                                            jet_tui::EffortLevel::Max
+                                        }
                                     };
                                     app.status_message = Some(format!(
                                         "Effort: {} {}",
@@ -1966,16 +1971,14 @@ async fn run_interactive(
                             }
 
                             if !handled_by_cli && !handled_by_tui {
-                                app.status_message = Some(format!(
-                                    "Unknown command: /{}",
-                                    cmd_name
-                                ));
+                                app.status_message =
+                                    Some(format!("Unknown command: /{}", cmd_name));
                             }
 
                             // If a UserMessage was queued (e.g. /compact), submit it.
                             if let Some(msg) = submit_user_msg {
-                                messages.push(claurst_core::types::Message::user(msg.clone()));
-                                app.push_message(claurst_core::types::Message::user(msg));
+                                messages.push(jet_core::types::Message::user(msg.clone()));
+                                app.push_message(jet_core::types::Message::user(msg));
                                 // Fall through to the send path below.
                             } else {
                                 continue;
@@ -1984,7 +1987,7 @@ async fn run_interactive(
 
                         // Fire UserPromptSubmit hook (non-blocking)
                         if !config.hooks.is_empty() {
-                            let hook_ctx = claurst_core::hooks::HookContext {
+                            let hook_ctx = jet_core::hooks::HookContext {
                                 event: "UserPromptSubmit".to_string(),
                                 tool_name: None,
                                 tool_input: None,
@@ -1992,9 +1995,9 @@ async fn run_interactive(
                                 is_error: None,
                                 session_id: Some(tool_ctx.session_id.clone()),
                             };
-                            claurst_core::hooks::run_hooks(
+                            jet_core::hooks::run_hooks(
                                 &config.hooks,
-                                claurst_core::config::HookEvent::UserPromptSubmit,
+                                jet_core::config::HookEvent::UserPromptSubmit,
                                 &hook_ctx,
                                 &tool_ctx.working_dir,
                             )
@@ -2004,24 +2007,27 @@ async fn run_interactive(
                         // Regular user message (with optional image attachments)
                         let pending_imgs = app.prompt_input.clear_images();
                         let user_msg = if pending_imgs.is_empty() {
-                            claurst_core::types::Message::user(input.clone())
+                            jet_core::types::Message::user(input.clone())
                         } else {
-                            let mut blocks: Vec<claurst_core::types::ContentBlock> = pending_imgs
+                            let mut blocks: Vec<jet_core::types::ContentBlock> = pending_imgs
                                 .iter()
                                 .filter_map(|img| {
-                                    claurst_tui::image_paste::encode_image_base64(&img.path)
-                                        .map(|b64| claurst_core::types::ContentBlock::Image {
-                                            source: claurst_core::types::ImageSource {
+                                    jet_tui::image_paste::encode_image_base64(&img.path).map(
+                                        |b64| jet_core::types::ContentBlock::Image {
+                                            source: jet_core::types::ImageSource {
                                                 source_type: "base64".to_string(),
                                                 media_type: Some("image/png".to_string()),
                                                 data: Some(b64),
                                                 url: None,
                                             },
-                                        })
+                                        },
+                                    )
                                 })
                                 .collect();
-                            blocks.push(claurst_core::types::ContentBlock::Text { text: input.clone() });
-                            claurst_core::types::Message::user_blocks(blocks)
+                            blocks.push(jet_core::types::ContentBlock::Text {
+                                text: input.clone(),
+                            });
+                            jet_core::types::Message::user_blocks(blocks)
                         };
                         messages.push(user_msg.clone());
                         app.push_message(user_msg);
@@ -2030,11 +2036,11 @@ async fn run_interactive(
 
                         // Update terminal title from session title or first message
                         if session.title.is_some() {
-                            claurst_tui::update_terminal_title(session.title.as_deref());
+                            jet_tui::update_terminal_title(session.title.as_deref());
                         } else {
                             // Use a truncated version of the first user message
                             let topic: String = input.chars().take(60).collect();
-                            claurst_tui::update_terminal_title(Some(&topic));
+                            jet_tui::update_terminal_title(Some(&topic));
                         }
 
                         // Start async query
@@ -2050,9 +2056,12 @@ async fn run_interactive(
 
                         // Share the Arc so the spawned task can access all tools (incl. MCP).
                         let tools_arc_clone = tools_arc.clone();
-                        let ctx_clone = tool_ctx.clone();
+                        let mut ctx_clone = tool_ctx.clone();
                         let mut qcfg = base_query_config.clone();
-                        qcfg.model = claurst_api::effective_model_for_config(&cmd_ctx.config, &model_registry);
+                        qcfg.model = jet_api::effective_model_for_config(
+                            &cmd_ctx.config,
+                            &model_registry,
+                        );
                         qcfg.max_tokens = cmd_ctx.config.effective_max_tokens();
                         qcfg.append_system_prompt = cmd_ctx.config.append_system_prompt.clone();
                         qcfg.system_prompt = base_query_config.system_prompt.clone();
@@ -2063,13 +2072,24 @@ async fn run_interactive(
                         if let Some(level) = current_effort {
                             qcfg.effort_level = Some(level);
                         }
+                        // Wire completion_notifier if a command queue is available.
+                        if let Some(ref cq) = qcfg.command_queue {
+                            let cq = cq.clone();
+                            ctx_clone.completion_notifier =
+                                Some(jet_tools::CompletionNotifier::new(move |msg| {
+                                    cq.push(
+                                        jet_query::QueuedCommand::InjectSystemMessage(msg),
+                                        jet_query::CommandPriority::Normal,
+                                    );
+                                }));
+                        }
                         let tracker = cost_tracker.clone();
                         let tx = event_tx.clone();
                         let client_clone = client.clone();
 
                         let handle = tokio::spawn(async move {
                             let mut msgs = msgs_arc_clone.lock().await.clone();
-                            let outcome = claurst_query::run_query_loop(
+                            let outcome = jet_query::run_query_loop(
                                 client_clone.as_ref(),
                                 &mut msgs,
                                 tools_arc_clone.as_slice(),
@@ -2101,7 +2121,7 @@ async fn run_interactive(
                     if app.agent_mode_changed {
                         app.agent_mode_changed = false;
                         let mode = app.agent_mode.as_deref().unwrap_or("build");
-                        let mut all_agents = claurst_core::default_agents();
+                        let mut all_agents = jet_core::default_agents();
                         all_agents.extend(cmd_ctx.config.agents.clone());
                         if let Some(def) = all_agents.get(mode) {
                             base_query_config.agent_name = Some(mode.to_string());
@@ -2138,34 +2158,40 @@ async fn run_interactive(
             // Forward to bridge before consuming (clone only what we need).
             if let Some(ref runtime) = bridge_runtime {
                 let outbound: Option<BridgeOutbound> = match &evt {
-                    QueryEvent::Stream(claurst_api::AnthropicStreamEvent::ContentBlockDelta {
-                        delta: claurst_api::streaming::ContentDelta::TextDelta { text },
+                    QueryEvent::Stream(jet_api::AnthropicStreamEvent::ContentBlockDelta {
+                        delta: jet_api::streaming::ContentDelta::TextDelta { text },
                         index,
                         ..
                     }) => Some(BridgeOutbound::TextDelta {
                         delta: text.clone(),
                         message_id: format!("msg-{}", index),
                     }),
-                    QueryEvent::ToolStart { tool_name, tool_id, input_json } => {
-                        Some(BridgeOutbound::ToolStart {
-                            id: tool_id.clone(),
-                            name: tool_name.clone(),
-                            input_preview: Some(input_json.clone()),
-                        })
-                    }
-                    QueryEvent::ToolEnd { tool_id, result, is_error, .. } => {
-                        Some(BridgeOutbound::ToolEnd {
-                            id: tool_id.clone(),
-                            output: result.clone(),
-                            is_error: *is_error,
-                        })
-                    }
-                    QueryEvent::TurnComplete { stop_reason, turn, .. } => {
-                        Some(BridgeOutbound::TurnComplete {
-                            message_id: format!("turn-{}", turn),
-                            stop_reason: stop_reason.clone(),
-                        })
-                    }
+                    QueryEvent::ToolStart {
+                        tool_name,
+                        tool_id,
+                        input_json,
+                        input_preview,
+                    } => Some(BridgeOutbound::ToolStart {
+                        id: tool_id.clone(),
+                        name: tool_name.clone(),
+                        input_preview: input_preview.clone().or_else(|| Some(input_json.clone())),
+                    }),
+                    QueryEvent::ToolEnd {
+                        tool_id,
+                        result,
+                        is_error,
+                        ..
+                    } => Some(BridgeOutbound::ToolEnd {
+                        id: tool_id.clone(),
+                        output: result.clone(),
+                        is_error: *is_error,
+                    }),
+                    QueryEvent::TurnComplete {
+                        stop_reason, turn, ..
+                    } => Some(BridgeOutbound::TurnComplete {
+                        message_id: format!("turn-{}", turn),
+                        stop_reason: stop_reason.clone(),
+                    }),
                     QueryEvent::Error(msg) => Some(BridgeOutbound::Error {
                         message: msg.clone(),
                     }),
@@ -2179,30 +2205,46 @@ async fn run_interactive(
             // This drives the post_bridge_event relay task spawned on Connected.
             if bridge_session_info.is_some() {
                 let relay_payload: Option<String> = match &evt {
-                    QueryEvent::Stream(claurst_api::AnthropicStreamEvent::ContentBlockDelta {
-                        delta: claurst_api::streaming::ContentDelta::TextDelta { text },
+                    QueryEvent::Stream(jet_api::AnthropicStreamEvent::ContentBlockDelta {
+                        delta: jet_api::streaming::ContentDelta::TextDelta { text },
                         ..
-                    }) => Some(serde_json::json!({
-                        "type": "text_chunk",
-                        "text": text,
-                    }).to_string()),
-                    QueryEvent::ToolStart { tool_name, tool_id, input_json } => {
-                        Some(serde_json::json!({
+                    }) => Some(
+                        serde_json::json!({
+                            "type": "text_chunk",
+                            "text": text,
+                        })
+                        .to_string(),
+                    ),
+                    QueryEvent::ToolStart {
+                        tool_name,
+                        tool_id,
+                        input_json,
+                        input_preview: _,
+                    } => Some(
+                        serde_json::json!({
                             "type": "tool_start",
                             "tool_name": tool_name,
                             "tool_id": tool_id,
                             "input": input_json,
-                        }).to_string())
-                    }
-                    QueryEvent::ToolEnd { tool_name, tool_id, result, is_error } => {
-                        Some(serde_json::json!({
+                        })
+                        .to_string(),
+                    ),
+                    QueryEvent::ToolEnd {
+                        tool_name,
+                        tool_id,
+                        result,
+                        is_error,
+                        result_preview: _,
+                    } => Some(
+                        serde_json::json!({
                             "type": "tool_end",
                             "tool_name": tool_name,
                             "tool_id": tool_id,
                             "result": result,
                             "is_error": is_error,
-                        }).to_string())
-                    }
+                        })
+                        .to_string(),
+                    ),
                     _ => None,
                 };
                 if let Some(payload) = relay_payload {
@@ -2219,7 +2261,8 @@ async fn run_interactive(
             && current_query.is_none()
             && !app.auto_compact_running
         {
-            let used_pct = (app.context_used_tokens as f64 / app.context_window_size as f64 * 100.0) as u64;
+            let used_pct =
+                (app.context_used_tokens as f64 / app.context_window_size as f64 * 100.0) as u64;
             if used_pct >= 99 {
                 app.auto_compact_running = true;
                 let msg_count = messages.len();
@@ -2231,7 +2274,7 @@ async fn run_interactive(
                     msg_count, used_pct
                 );
                 app.status_message = Some("Context 99% full — auto-compacting…".to_string());
-                let user_msg = claurst_core::types::Message::user(compact_msg);
+                let user_msg = jet_core::types::Message::user(compact_msg);
                 messages.push(user_msg.clone());
                 app.push_message(user_msg);
                 session.messages = messages.clone();
@@ -2245,7 +2288,8 @@ async fn run_interactive(
                 let tools_arc_clone = tools_arc.clone();
                 let ctx_clone = tool_ctx.clone();
                 let mut qcfg = base_query_config.clone();
-                qcfg.model = claurst_api::effective_model_for_config(&cmd_ctx.config, &model_registry);
+                qcfg.model =
+                    jet_api::effective_model_for_config(&cmd_ctx.config, &model_registry);
                 qcfg.max_tokens = cmd_ctx.config.effective_max_tokens();
                 let tracker = cost_tracker.clone();
                 let tx = event_tx.clone();
@@ -2254,7 +2298,7 @@ async fn run_interactive(
 
                 let handle = tokio::spawn(async move {
                     let mut msgs = msgs_arc_clone.lock().await.clone();
-                    let outcome = claurst_query::run_query_loop(
+                    let outcome = jet_query::run_query_loop(
                         client_clone.as_ref(),
                         &mut msgs,
                         tools_arc_clone.as_slice(),
@@ -2278,7 +2322,10 @@ async fn run_interactive(
         if let Some(runtime) = bridge_runtime.as_mut() {
             loop {
                 match runtime.tui_rx.try_recv() {
-                    Ok(TuiBridgeEvent::Connected { session_url, session_id: conn_sid }) => {
+                    Ok(TuiBridgeEvent::Connected {
+                        session_url,
+                        session_id: conn_sid,
+                    }) => {
                         let short = if session_url.len() > 60 {
                             format!("{}…", &session_url[..60])
                         } else {
@@ -2298,13 +2345,13 @@ async fn run_interactive(
                         // Persist the session URL into the saved session record.
                         session.remote_session_url = Some(session_url.clone());
                         session.updated_at = chrono::Utc::now();
-                        let _ = claurst_core::history::save_session(&session).await;
+                        let _ = jet_core::history::save_session(&session).await;
 
                         // Wire the BridgeSessionInfo relay so live tool/text events reach
                         // the web UI via /api/bridge/sessions. This runs alongside
                         // run_bridge_loop as a best-effort supplementary delivery path.
                         if let Some(ref token) = bridge_token {
-                            let info = std::sync::Arc::new(claurst_bridge::BridgeSessionInfo {
+                            let info = std::sync::Arc::new(jet_bridge::BridgeSessionInfo {
                                 session_id: conn_sid.clone(),
                                 session_url: session_url.clone(),
                                 token: token.clone(),
@@ -2318,11 +2365,9 @@ async fn run_interactive(
                                 tokio::spawn(async move {
                                     let mut rx = rx;
                                     while let Some(payload) = rx.recv().await {
-                                        let _ = claurst_bridge::post_bridge_event(
-                                            &info_relay,
-                                            payload,
-                                        )
-                                        .await;
+                                        let _ =
+                                            jet_bridge::post_bridge_event(&info_relay, payload)
+                                                .await;
                                     }
                                 });
                             }
@@ -2334,7 +2379,7 @@ async fn run_interactive(
                             tokio::spawn(async move {
                                 let mut since_id: Option<String> = None;
                                 loop {
-                                    match claurst_bridge::poll_bridge_messages(
+                                    match jet_bridge::poll_bridge_messages(
                                         &info_poll,
                                         since_id.as_deref(),
                                     )
@@ -2356,10 +2401,7 @@ async fn run_interactive(
                                         }
                                         _ => {}
                                     }
-                                    tokio::time::sleep(
-                                        std::time::Duration::from_secs(2),
-                                    )
-                                    .await;
+                                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
                                 }
                             });
                         }
@@ -2386,8 +2428,8 @@ async fn run_interactive(
                         // trigger submission automatically.
                         app.set_prompt_text(content.clone());
                         // Push as a user message and fire a query immediately.
-                        messages.push(claurst_core::types::Message::user(content.clone()));
-                        app.push_message(claurst_core::types::Message::user(content.clone()));
+                        messages.push(jet_core::types::Message::user(content.clone()));
+                        app.push_message(jet_core::types::Message::user(content.clone()));
                         session.messages = messages.clone();
                         session.updated_at = chrono::Utc::now();
                         app.is_streaming = true;
@@ -2399,14 +2441,17 @@ async fn run_interactive(
                         let tools_arc_clone = tools_arc.clone();
                         let ctx_clone = tool_ctx.clone();
                         let mut qcfg = base_query_config.clone();
-                        qcfg.model = claurst_api::effective_model_for_config(&cmd_ctx.config, &model_registry);
+                        qcfg.model = jet_api::effective_model_for_config(
+                            &cmd_ctx.config,
+                            &model_registry,
+                        );
                         qcfg.max_tokens = cmd_ctx.config.effective_max_tokens();
                         let tracker = cost_tracker.clone();
                         let tx = event_tx.clone();
                         let client_clone = client.clone();
                         let handle = tokio::spawn(async move {
                             let mut msgs = msgs_arc_clone.lock().await.clone();
-                            let outcome = claurst_query::run_query_loop(
+                            let outcome = jet_query::run_query_loop(
                                 client_clone.as_ref(),
                                 &mut msgs,
                                 tools_arc_clone.as_slice(),
@@ -2429,18 +2474,21 @@ async fn run_interactive(
                                 ct.cancel();
                             }
                             app.is_streaming = false;
-                            app.status_message =
-                                Some("Cancelled by remote control.".to_string());
+                            app.status_message = Some("Cancelled by remote control.".to_string());
                         }
                     }
-                    Ok(TuiBridgeEvent::PermissionResponse { tool_use_id, response }) => {
+                    Ok(TuiBridgeEvent::PermissionResponse {
+                        tool_use_id,
+                        response,
+                    }) => {
                         // Resolve a pending permission dialog if IDs match.
                         if let Some(ref pr) = app.permission_request {
                             if pr.tool_use_id == tool_use_id {
-                                use claurst_bridge::PermissionResponseKind;
+                                use jet_bridge::PermissionResponseKind;
                                 let _allow = matches!(
                                     response,
-                                    PermissionResponseKind::Allow | PermissionResponseKind::AllowSession
+                                    PermissionResponseKind::Allow
+                                        | PermissionResponseKind::AllowSession
                                 );
                                 app.permission_request = None;
                             }
@@ -2451,7 +2499,7 @@ async fn run_interactive(
                         session.updated_at = chrono::Utc::now();
                         cmd_ctx.session_title = Some(title.clone());
                         app.session_title = Some(title);
-                        let _ = claurst_core::history::save_session(&session).await;
+                        let _ = jet_core::history::save_session(&session).await;
                     }
                     Ok(TuiBridgeEvent::Error(msg)) => {
                         app.bridge_state = BridgeConnectionState::Failed {
@@ -2494,8 +2542,8 @@ async fn run_interactive(
         while let Ok(content) = remote_prompt_rx.try_recv() {
             if !app.is_streaming {
                 app.set_prompt_text(content.clone());
-                messages.push(claurst_core::types::Message::user(content.clone()));
-                app.push_message(claurst_core::types::Message::user(content.clone()));
+                messages.push(jet_core::types::Message::user(content.clone()));
+                app.push_message(jet_core::types::Message::user(content.clone()));
                 session.messages = messages.clone();
                 session.updated_at = chrono::Utc::now();
                 app.is_streaming = true;
@@ -2507,14 +2555,15 @@ async fn run_interactive(
                 let tools_arc_clone = tools_arc.clone();
                 let ctx_clone = tool_ctx.clone();
                 let mut qcfg = base_query_config.clone();
-                qcfg.model = claurst_api::effective_model_for_config(&cmd_ctx.config, &model_registry);
+                qcfg.model =
+                    jet_api::effective_model_for_config(&cmd_ctx.config, &model_registry);
                 qcfg.max_tokens = cmd_ctx.config.effective_max_tokens();
                 let tracker = cost_tracker.clone();
                 let tx = event_tx.clone();
                 let client_clone = client.clone();
                 let handle = tokio::spawn(async move {
                     let mut msgs = msgs_arc_clone.lock().await.clone();
-                    let outcome = claurst_query::run_query_loop(
+                    let outcome = jet_query::run_query_loop(
                         client_clone.as_ref(),
                         &mut msgs,
                         tools_arc_clone.as_slice(),
@@ -2566,28 +2615,35 @@ async fn run_interactive(
                     const COPILOT_CLIENT_ID: &str = "Ov23li8tweQw6odWQebz";
                     tokio::spawn(async move {
                         // Step 1: Request device code
-                        match claurst_core::device_code::request_device_code(
+                        match jet_core::device_code::request_device_code(
                             COPILOT_CLIENT_ID,
                             "read:user",
                             "https://github.com/login/device/code",
-                        ).await {
+                        )
+                        .await
+                        {
                             Ok(resp) => {
-                                let _ = tx2.send(DeviceAuthEvent::GotCode {
-                                    user_code: resp.user_code,
-                                    verification_uri: resp.verification_uri,
-                                    device_code: resp.device_code.clone(),
-                                    interval: resp.interval,
-                                }).await;
+                                let _ = tx2
+                                    .send(DeviceAuthEvent::GotCode {
+                                        user_code: resp.user_code,
+                                        verification_uri: resp.verification_uri,
+                                        device_code: resp.device_code.clone(),
+                                        interval: resp.interval,
+                                    })
+                                    .await;
                                 // Step 2: Poll for access token
-                                match claurst_core::device_code::poll_for_token(
+                                match jet_core::device_code::poll_for_token(
                                     COPILOT_CLIENT_ID,
                                     &resp.device_code,
                                     "https://github.com/login/oauth/access_token",
                                     resp.interval,
                                     300,
-                                ).await {
+                                )
+                                .await
+                                {
                                     Ok(token) => {
-                                        let _ = tx2.send(DeviceAuthEvent::TokenReceived(token)).await;
+                                        let _ =
+                                            tx2.send(DeviceAuthEvent::TokenReceived(token)).await;
                                     }
                                     Err(e) => {
                                         let _ = tx2.send(DeviceAuthEvent::Error(e)).await;
@@ -2606,31 +2662,33 @@ async fn run_interactive(
                     // Claurst does not have its own registered OAuth app with Anthropic.
                     // Users should use an API key from console.anthropic.com instead.
                     tokio::spawn(async move {
-                        let _ = tx2.send(DeviceAuthEvent::Error(
-                            "Anthropic OAuth requires a registered application.\n\
-                             Use an API key instead: console.anthropic.com/settings/keys".to_string()
-                        )).await;
+                        let _ = tx2
+                            .send(DeviceAuthEvent::Error(
+                                "Anthropic OAuth requires a registered application.\n\
+                             Use an API key instead: console.anthropic.com/settings/keys"
+                                    .to_string(),
+                            ))
+                            .await;
                     });
                 }
-                "openai-codex" => {
+                "codex" | "openai-codex" => {
                     let tx2 = device_auth_tx.clone();
-                    app.device_auth_dialog.set_code(
-                        "".to_string(),
-                        "Opening browser for OpenAI login...".to_string(),
-                        "".to_string(),
-                        0,
-                    );
+                    // Keep the dialog in WaitingForCode until GotBrowserUrl arrives.
+                    // (set_browser_url() transitions it to BrowserAuth with the URL.)
                     tokio::spawn(async move {
-                        match crate::codex_oauth_flow::run_oauth_flow().await {
+                        match crate::codex_oauth_flow::run_oauth_flow(tx2.clone()).await {
                             Ok(tokens) => {
-                                let _ = tx2.send(DeviceAuthEvent::TokenReceived(
-                                    tokens.access_token,
-                                )).await;
+                                let _ = tx2
+                                    .send(DeviceAuthEvent::TokenReceived(tokens.access_token))
+                                    .await;
                             }
                             Err(e) => {
-                                let _ = tx2.send(DeviceAuthEvent::Error(
-                                    format!("Codex OAuth failed: {}", e),
-                                )).await;
+                                let _ = tx2
+                                    .send(DeviceAuthEvent::Error(format!(
+                                        "Codex OAuth failed: {}",
+                                        e
+                                    )))
+                                    .await;
                             }
                         }
                     });
@@ -2653,18 +2711,34 @@ async fn run_interactive(
                     interval,
                 } => {
                     // Auto-copy the user code to clipboard
-                    let _ = claurst_tui::try_copy_to_clipboard(&user_code);
+                    let _ = jet_tui::try_copy_to_clipboard(&user_code);
 
                     // Auto-open the verification URL in the browser
                     let _ = open::that(&verification_uri);
 
-                    app.device_auth_dialog
-                        .set_code(user_code, verification_uri, device_code, interval);
+                    app.device_auth_dialog.set_code(
+                        user_code,
+                        verification_uri,
+                        device_code,
+                        interval,
+                    );
 
                     app.notifications.push(
-                        claurst_tui::NotificationKind::Info,
+                        jet_tui::NotificationKind::Info,
                         "Code copied to clipboard & browser opened.".to_string(),
                         Some(4),
+                    );
+                }
+                DeviceAuthEvent::GotBrowserUrl { url } => {
+                    // Copy the URL to clipboard so the user can paste it even
+                    // when the automatic browser launch silently fails (headless
+                    // terminals, tty2, Wayland-without-xdg-open, etc.).
+                    let _ = jet_tui::try_copy_to_clipboard(&url);
+                    app.device_auth_dialog.set_browser_url(url);
+                    app.notifications.push(
+                        jet_tui::NotificationKind::Info,
+                        "Login URL copied to clipboard.".to_string(),
+                        Some(5),
                     );
                 }
                 DeviceAuthEvent::TokenReceived(token) => {
@@ -2690,7 +2764,8 @@ async fn run_interactive(
                 messages = msgs_arc.lock().await.clone();
                 session.messages = messages.clone();
                 session.updated_at = chrono::Utc::now();
-                session.model = claurst_api::effective_model_for_config(&cmd_ctx.config, &model_registry);
+                session.model =
+                    jet_api::effective_model_for_config(&cmd_ctx.config, &model_registry);
                 session.working_dir = Some(tool_ctx.working_dir.display().to_string());
                 app.is_streaming = false;
                 app.status_message = None;
@@ -2702,12 +2777,12 @@ async fn run_interactive(
                 }
 
                 // Save session to JSONL (primary storage)
-                let _ = claurst_core::history::save_session(&session).await;
+                let _ = jet_core::history::save_session(&session).await;
 
                 // Also index into SQLite for /search support
                 {
-                    let db_path = claurst_core::config::Settings::config_dir().join("sessions.db");
-                    if let Ok(store) = claurst_core::SqliteSessionStore::open(&db_path) {
+                    let db_path = jet_core::config::Settings::config_dir().join("sessions.db");
+                    if let Ok(store) = jet_core::SqliteSessionStore::open(&db_path) {
                         let _ = store.save_session(
                             &session.id,
                             session.title.as_deref(),
@@ -2715,18 +2790,27 @@ async fn run_interactive(
                         );
                         for msg in &session.messages {
                             let content_str = match &msg.content {
-                                claurst_core::types::MessageContent::Text(t) => t.clone(),
-                                claurst_core::types::MessageContent::Blocks(blocks) => blocks.iter()
-                                    .filter_map(|b| if let claurst_core::types::ContentBlock::Text { text } = b { Some(text.as_str()) } else { None })
+                                jet_core::types::MessageContent::Text(t) => t.clone(),
+                                jet_core::types::MessageContent::Blocks(blocks) => blocks
+                                    .iter()
+                                    .filter_map(|b| {
+                                        if let jet_core::types::ContentBlock::Text { text } = b
+                                        {
+                                            Some(text.as_str())
+                                        } else {
+                                            None
+                                        }
+                                    })
                                     .collect::<Vec<_>>()
                                     .join(" "),
                             };
                             let role = match msg.role {
-                                claurst_core::types::Role::User => "user",
-                                claurst_core::types::Role::Assistant => "assistant",
+                                jet_core::types::Role::User => "user",
+                                jet_core::types::Role::Assistant => "assistant",
                             };
                             let msg_id = msg.uuid.as_deref().unwrap_or("unknown");
-                            let _ = store.save_message(&session.id, msg_id, role, &content_str, None);
+                            let _ =
+                                store.save_message(&session.id, msg_id, role, &content_str, None);
                         }
                     }
                 }
@@ -2820,7 +2904,9 @@ async fn handle_auth_command(args: &[String]) -> anyhow::Result<()> {
             eprintln!("Unknown auth subcommand: '{}'", unknown);
             eprintln!();
             eprintln!("Usage: claude auth <subcommand>");
-            eprintln!("  login [--console]   Authenticate (claude.ai by default; --console for API key)");
+            eprintln!(
+                "  login [--console]   Authenticate (claude.ai by default; --console for API key)"
+            );
             eprintln!("  logout              Remove stored credentials");
             eprintln!("  status [--json]     Show authentication status");
             std::process::exit(1);
@@ -2838,26 +2924,103 @@ async fn handle_auth_command(args: &[String]) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn provider_status_lookup_keys(provider_id: &str) -> Vec<&str> {
+    match provider_id {
+        "togetherai" | "together-ai" => vec!["togetherai", "together-ai"],
+        "lmstudio" | "lm-studio" => vec!["lmstudio", "lm-studio"],
+        "llamacpp" | "llama-cpp" | "llama-server" => vec!["llamacpp", "llama-cpp", "llama-server"],
+        "moonshot" | "moonshotai" => vec!["moonshot", "moonshotai"],
+        "zhipu" | "zhipuai" => vec!["zhipu", "zhipuai"],
+        "vultr" | "vultr-ai" => vec!["vultr", "vultr-ai"],
+        "google" | "google-vertex" => vec!["google", "google-vertex"],
+        _ => vec![provider_id],
+    }
+}
+
+fn format_provider_name(provider_id: &str) -> String {
+    match provider_id {
+        "anthropic" => "Anthropic".to_string(),
+        "openai" => "OpenAI".to_string(),
+        "google" => "Google".to_string(),
+        "google-vertex" => "Google Vertex".to_string(),
+        "github-copilot" => "GitHub Copilot".to_string(),
+        "xai" => "xAI".to_string(),
+        "lmstudio" | "lm-studio" => "LM Studio".to_string(),
+        "llamacpp" | "llama-cpp" | "llama-server" => "llama.cpp".to_string(),
+        other => other
+            .split('-')
+            .map(|part| {
+                let mut chars = part.chars();
+                match chars.next() {
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                    None => String::new(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
+    }
+}
+
 /// Print current auth status, then exit with code 0 (logged in) or 1 (not logged in).
 async fn auth_status(json_output: bool) {
-    // Gather auth state
-    let env_api_key = std::env::var("ANTHROPIC_API_KEY").ok().filter(|k| !k.is_empty());
     let settings = Settings::load().await.unwrap_or_default();
-    let settings_api_key = settings.config.api_key.clone().filter(|k| !k.is_empty());
-    let oauth_tokens = claurst_core::oauth::OAuthTokens::load().await;
-    let api_provider = "Anthropic";
-    let api_key_source = if env_api_key.is_some() {
-        Some("ANTHROPIC_API_KEY".to_string())
-    } else if settings_api_key.is_some() {
-        Some("settings".to_string())
-    } else if oauth_tokens
-        .as_ref()
-        .is_some_and(|tokens| !tokens.uses_bearer_auth() && tokens.api_key.is_some())
-    {
-        Some("/login managed key".to_string())
+    let config = &settings.config;
+    let active_provider = config.selected_provider_id();
+    let provider_cfg = config
+        .provider_configs
+        .get(active_provider)
+        .filter(|provider| provider.enabled);
+    let auth_store = jet_core::AuthStore::load();
+    let oauth_tokens = if active_provider == "anthropic" {
+        jet_core::oauth::OAuthTokens::load().await
     } else {
         None
     };
+
+    let env_api_key_source = jet_core::config::api_key_env_vars_for_provider(active_provider)
+        .iter()
+        .find_map(|env_var| {
+            std::env::var(env_var)
+                .ok()
+                .filter(|value| !value.is_empty())
+                .map(|_| (*env_var).to_string())
+        });
+    let stored_api_key_source = provider_status_lookup_keys(active_provider)
+        .into_iter()
+        .find_map(|provider_id| match auth_store.get(provider_id) {
+            Some(jet_core::StoredCredential::ApiKey { key }) if !key.is_empty() => {
+                Some("stored credential".to_string())
+            }
+            Some(jet_core::StoredCredential::OAuthToken {
+                access, refresh, ..
+            }) if active_provider == "github-copilot"
+                && (!access.is_empty() || !refresh.is_empty()) =>
+            {
+                Some("stored token".to_string())
+            }
+            _ => None,
+        });
+
+    let api_provider = format_provider_name(active_provider);
+    let api_key_source = config
+        .api_key
+        .as_ref()
+        .filter(|key| !key.is_empty())
+        .map(|_| "settings.api_key".to_string())
+        .or_else(|| {
+            provider_cfg
+                .and_then(|provider| provider.api_key.as_ref())
+                .filter(|key| !key.is_empty())
+                .map(|_| format!("settings.provider_configs.{active_provider}.api_key"))
+        })
+        .or(stored_api_key_source)
+        .or(env_api_key_source)
+        .or_else(|| {
+            oauth_tokens
+                .as_ref()
+                .filter(|tokens| !tokens.uses_bearer_auth() && tokens.api_key.is_some())
+                .map(|_| "/login managed key".to_string())
+        });
     let token_source = oauth_tokens.as_ref().map(|tokens| {
         if tokens.uses_bearer_auth() {
             "claude.ai".to_string()
@@ -2895,21 +3058,20 @@ async fn auth_status(json_output: bool) {
         },
     );
 
-    // Determine auth method (mirrors TypeScript authStatus())
     let (auth_method, logged_in) = if let Some(ref tokens) = oauth_tokens {
-        let uses_bearer = tokens.uses_bearer_auth();
-        let method = if uses_bearer { "claude.ai" } else { "oauth_token" };
+        let method = if tokens.uses_bearer_auth() {
+            "claude.ai"
+        } else {
+            "oauth_token"
+        };
         (method.to_string(), true)
-    } else if env_api_key.is_some() {
-        ("api_key".to_string(), true)
-    } else if settings_api_key.is_some() {
+    } else if api_key_source.is_some() {
         ("api_key".to_string(), true)
     } else {
         ("none".to_string(), false)
     };
 
     if json_output {
-        // JSON output (used by SDK + scripts)
         let mut obj = serde_json::json!({
             "loggedIn": logged_in,
             "authMethod": auth_method,
@@ -2917,7 +3079,6 @@ async fn auth_status(json_output: bool) {
             "billing": billing_mode,
         });
 
-        // Include API key source if known
         if let Some(ref source) = api_key_source {
             obj["apiKeySource"] = serde_json::Value::String(source.clone());
         }
@@ -2936,9 +3097,20 @@ async fn auth_status(json_output: bool) {
 
         println!("{}", serde_json::to_string_pretty(&obj).unwrap_or_default());
     } else {
-        // Human-readable text output
         if !logged_in {
-            println!("Not logged in. Run `claude auth login` to authenticate.");
+            let hint = if active_provider == "anthropic" {
+                "Run `claude auth login` or set ANTHROPIC_API_KEY.".to_string()
+            } else if let Some(env_var) =
+                jet_core::config::primary_api_key_env_var_for_provider(active_provider)
+            {
+                format!(
+                    "Set {} or store a credential for {}.",
+                    env_var, api_provider
+                )
+            } else {
+                format!("Configure credentials for {}.", api_provider)
+            };
+            println!("Not logged in for {}. {}", api_provider, hint);
         } else {
             println!("Logged in.");
             println!("  API provider: {}", api_provider);
@@ -2984,7 +3156,7 @@ async fn auth_logout() {
     let mut had_error = false;
 
     // Clear OAuth tokens
-    if let Err(e) = claurst_core::oauth::OAuthTokens::clear().await {
+    if let Err(e) = jet_core::oauth::OAuthTokens::clear().await {
         eprintln!("Warning: failed to clear OAuth tokens: {}", e);
         had_error = true;
     }
@@ -3033,4 +3205,3 @@ fn json_null_or_string(opt: &Option<String>) -> serde_json::Value {
         None => serde_json::Value::Null,
     }
 }
-

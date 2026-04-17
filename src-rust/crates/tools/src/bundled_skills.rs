@@ -171,9 +171,9 @@ $ARGUMENTS
 ## Settings Reference
 
 Settings files are in:
-- User:    ~/.claurst/settings.json
-- Project: .claurst/settings.json
-- Local:   .claurst/settings.local.json
+- User:    ~/.jet/settings.json
+- Project: .jet/settings.json
+- Local:   .jet/settings.local.json
 
 Read the relevant files before making any changes."#,
         allowed_tools: Some(&["Read", "Grep", "Glob"]),
@@ -276,21 +276,21 @@ a status table. When all agents have reported, print a final summary."#,
     // -----------------------------------------------------------------------
     BundledSkill {
         name: "update-config",
-        description: "Configure Claurst settings (hooks, permissions, env vars, behaviours) via settings.json.",
+        description: "Configure jet settings (hooks, permissions, env vars, behaviours) via settings.json.",
         aliases: &["config-update", "settings"],
         when_to_use: Some("When the user wants to configure automated behaviours, permissions, or settings."),
         argument_hint: Some("<what to configure>"),
         prompt_template: r#"# Update Config Skill
 
-Modify Claurst configuration by updating settings.json files.
+Modify jet configuration by updating settings.json files.
 
 ## Settings File Locations
 
 | File | Scope | Use For |
 |------|-------|---------|
-| `~/.claurst/settings.json` | Global | Personal preferences for all projects |
-| `.claurst/settings.json` | Project | Team-wide hooks, permissions, plugins |
-| `.claurst/settings.local.json` | Project (local) | Personal overrides for this project |
+| `~/.jet/settings.json` | Global | Personal preferences for all projects |
+| `.jet/settings.json` | Project | Team-wide hooks, permissions, plugins |
+| `.jet/settings.local.json` | Project (local) | Personal overrides for this project |
 
 Settings load in order: user → project → local (later overrides earlier).
 
@@ -415,9 +415,9 @@ $ARGUMENTS"#,
 /// Find a bundled skill by name or alias (case-insensitive).
 pub fn find_bundled_skill(name: &str) -> Option<&'static BundledSkill> {
     let lower = name.to_lowercase();
-    BUNDLED_SKILLS.iter().find(|s| {
-        s.name == lower || s.aliases.iter().any(|a| *a == lower)
-    })
+    BUNDLED_SKILLS
+        .iter()
+        .find(|s| s.name == lower || s.aliases.iter().any(|a| *a == lower))
 }
 
 /// Return `(name, description)` pairs for all user-invocable bundled skills.
@@ -488,11 +488,7 @@ mod tests {
     fn skill_names_are_unique() {
         let mut seen = std::collections::HashSet::new();
         for s in BUNDLED_SKILLS {
-            assert!(
-                seen.insert(s.name),
-                "duplicate skill name: {}",
-                s.name
-            );
+            assert!(seen.insert(s.name), "duplicate skill name: {}", s.name);
         }
     }
 

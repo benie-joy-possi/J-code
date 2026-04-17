@@ -5,7 +5,7 @@
 // CronListTool    – list all scheduled tasks
 //
 // Scheduled tasks are stored in a global in-memory store.
-// Durable tasks are persisted to `~/.claurst/scheduled_tasks.json`.
+// Durable tasks are persisted to `~/.jet/scheduled_tasks.json`.
 //
 // On first use the store is initialised from the JSON file; tasks older than
 // 7 days are automatically purged on load (matching TypeScript behaviour).
@@ -56,9 +56,9 @@ static CRON_STORE: Lazy<Arc<RwLock<HashMap<String, CronTask>>>> =
 // Disk path helpers
 // ---------------------------------------------------------------------------
 
-/// Path to `~/.claurst/scheduled_tasks.json`.
+/// Path to `~/.jet/scheduled_tasks.json`.
 fn scheduled_tasks_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".claurst").join("scheduled_tasks.json"))
+    dirs::home_dir().map(|h| h.join(".jet").join("scheduled_tasks.json"))
 }
 
 /// Ensure the store has been loaded from disk (once per process).
@@ -69,7 +69,7 @@ async fn ensure_store_loaded() {
     }
     *init = true;
 
-    // Load from ~/.claurst/scheduled_tasks.json if it exists.
+    // Load from ~/.jet/scheduled_tasks.json if it exists.
     let path = match scheduled_tasks_path() {
         Some(p) => p,
         None => return,
@@ -256,11 +256,15 @@ struct CronCreateInput {
     durable: bool,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 #[async_trait]
 impl Tool for CronCreateTool {
-    fn name(&self) -> &str { "CronCreate" }
+    fn name(&self) -> &str {
+        "CronCreate"
+    }
 
     fn description(&self) -> &str {
         "Schedule a recurring or one-shot prompt using a standard 5-field cron expression \
@@ -272,7 +276,9 @@ impl Tool for CronCreateTool {
          Use durable=true to persist across sessions."
     }
 
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         json!({
@@ -292,7 +298,7 @@ impl Tool for CronCreateTool {
                 },
                 "durable": {
                     "type": "boolean",
-                    "description": "true = persist to .claurst/scheduled_tasks.json; false (default) = session only"
+                    "description": "true = persist to .jet/scheduled_tasks.json; false (default) = session only"
                 }
             },
             "required": ["cron", "prompt"]
@@ -339,7 +345,7 @@ impl Tool for CronCreateTool {
 
         store.insert(id.clone(), task);
 
-        // Persist to ~/.claurst/scheduled_tasks.json for durable tasks.
+        // Persist to ~/.jet/scheduled_tasks.json for durable tasks.
         if params.durable {
             if let Err(e) = persist_tasks_to_disk(&store).await {
                 debug!("Failed to persist cron task to disk: {}", e);
@@ -349,7 +355,7 @@ impl Tool for CronCreateTool {
         let human = cron_to_human(&params.cron);
 
         let where_note = if params.durable {
-            "Persisted to ~/.claurst/scheduled_tasks.json"
+            "Persisted to ~/.jet/scheduled_tasks.json"
         } else {
             "Session-only (dies when Claude exits)"
         };
@@ -380,13 +386,17 @@ struct CronDeleteInput {
 
 #[async_trait]
 impl Tool for CronDeleteTool {
-    fn name(&self) -> &str { "CronDelete" }
+    fn name(&self) -> &str {
+        "CronDelete"
+    }
 
     fn description(&self) -> &str {
         "Cancel a scheduled cron task by its ID. Use CronList to find the ID."
     }
 
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         json!({
@@ -433,13 +443,17 @@ pub struct CronListTool;
 
 #[async_trait]
 impl Tool for CronListTool {
-    fn name(&self) -> &str { "CronList" }
+    fn name(&self) -> &str {
+        "CronList"
+    }
 
     fn description(&self) -> &str {
         "List all currently scheduled cron tasks."
     }
 
-    fn permission_level(&self) -> PermissionLevel { PermissionLevel::None }
+    fn permission_level(&self) -> PermissionLevel {
+        PermissionLevel::None
+    }
 
     fn input_schema(&self) -> Value {
         json!({
@@ -492,19 +506,22 @@ impl Tool for CronListTool {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Persist all durable tasks to `~/.claurst/scheduled_tasks.json`.
+/// Persist all durable tasks to `~/.jet/scheduled_tasks.json`.
 async fn persist_tasks_to_disk(store: &HashMap<String, CronTask>) -> Result<(), String> {
     let durable: Vec<&CronTask> = store.values().filter(|t| t.durable).collect();
     let json = serde_json::to_string_pretty(&durable).map_err(|e| e.to_string())?;
 
-    let path = scheduled_tasks_path().ok_or_else(|| "Cannot determine home directory".to_string())?;
+    let path =
+        scheduled_tasks_path().ok_or_else(|| "Cannot determine home directory".to_string())?;
     let dir = path.parent().ok_or("No parent directory")?;
 
     tokio::fs::create_dir_all(dir)
         .await
         .map_err(|e| e.to_string())?;
 
-    tokio::fs::write(&path, json).await.map_err(|e| e.to_string())?;
+    tokio::fs::write(&path, json)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }

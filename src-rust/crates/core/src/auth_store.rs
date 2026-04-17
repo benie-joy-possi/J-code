@@ -1,4 +1,4 @@
-// auth_store.rs — JSON-based credential store at ~/.claurst/auth.json.
+// auth_store.rs — JSON-based credential store at ~/.jet/auth.json.
 //
 // Stores API keys and OAuth tokens for providers so users don't have to rely
 // solely on environment variables.
@@ -21,7 +21,7 @@ pub enum StoredCredential {
     },
 }
 
-/// Persistent credential store backed by `~/.claurst/auth.json`.
+/// Persistent credential store backed by `~/.jet/auth.json`.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct AuthStore {
     pub credentials: HashMap<String, StoredCredential>,
@@ -32,7 +32,7 @@ impl AuthStore {
     pub fn path() -> PathBuf {
         let dir = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".claurst");
+            .join(".jet");
         dir.join("auth.json")
     }
 
@@ -89,9 +89,7 @@ impl AuthStore {
                     }
                 }
                 StoredCredential::OAuthToken {
-                    access,
-                    refresh,
-                    ..
+                    access, refresh, ..
                 } if provider_id == "github-copilot" => {
                     if !refresh.is_empty() {
                         return Some(refresh.clone());
@@ -123,6 +121,7 @@ impl AuthStore {
             "azure" => "AZURE_API_KEY",
             "huggingface" => "HF_TOKEN",
             "nvidia" => "NVIDIA_API_KEY",
+            "zai" => "ZAI_API_KEY",
             _ => return None,
         };
         std::env::var(env_var).ok().filter(|k| !k.is_empty())

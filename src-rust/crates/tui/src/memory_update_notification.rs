@@ -1,8 +1,8 @@
 // memory_update_notification.rs — MemoryUpdateNotification surface.
 //
 // Mirrors src/components/memory/MemoryUpdateNotification.tsx.
-// Shown briefly in the message area when Claurst updates a memory file
-// (e.g. ~/.claurst/AGENTS.md or a project-local AGENTS.md).
+// Shown briefly in the message area when jet updates a memory file
+// (e.g. ~/.jet/AGENTS.md or a project-local AGENTS.md).
 //
 // Displays: "Memory updated in {relative_path} · /memory to edit"
 //
@@ -17,7 +17,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph, Widget};
 
-use crate::overlays::{CLAURST_ACCENT, CLAURST_MUTED, CLAURST_PANEL_BG, CLAURST_TEXT};
+use crate::overlays::{jet_ACCENT, JET_MUTED, jet_PANEL_BG, JET_TEXT};
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -64,7 +64,11 @@ pub fn get_relative_memory_path(path: &str) -> String {
     // Return shortest, fall back to normalized absolute path
     match (home_rel.is_empty(), cwd_rel.is_empty()) {
         (false, false) => {
-            if home_rel.len() <= cwd_rel.len() { home_rel } else { cwd_rel }
+            if home_rel.len() <= cwd_rel.len() {
+                home_rel
+            } else {
+                cwd_rel
+            }
         }
         (false, true) => home_rel,
         (true, false) => cwd_rel,
@@ -112,11 +116,19 @@ impl MemoryUpdateNotificationState {
 
     /// Height the notification occupies (0 if not visible).
     pub fn height(&self) -> u16 {
-        if self.visible { 1 } else { 0 }
+        if self.visible {
+            1
+        } else {
+            0
+        }
     }
 
     pub fn tick(&mut self) {
-        if self.visible && self.expires_at.is_some_and(|expires_at| Instant::now() >= expires_at) {
+        if self.visible
+            && self
+                .expires_at
+                .is_some_and(|expires_at| Instant::now() >= expires_at)
+        {
             self.dismiss();
         }
     }
@@ -149,27 +161,27 @@ pub fn render_memory_update_notification(
 
     let line = Line::from(vec![
         Span::styled(" ", Style::default()),
-        Span::styled("\u{1f9e0} ", Style::default().fg(CLAURST_ACCENT)),
-        Span::styled("Memory updated in ", Style::default().fg(CLAURST_TEXT)),
+        Span::styled("\u{1f9e0} ", Style::default().fg(jet_ACCENT)),
+        Span::styled("Memory updated in ", Style::default().fg(JET_TEXT)),
         Span::styled(
             display_path,
             Style::default()
-                .fg(CLAURST_ACCENT)
+                .fg(jet_ACCENT)
                 .add_modifier(Modifier::BOLD),
         ),
-        Span::styled(" \u{00b7} ", Style::default().fg(CLAURST_MUTED)),
+        Span::styled(" \u{00b7} ", Style::default().fg(JET_MUTED)),
         Span::styled(
             "/memory",
             Style::default()
-                .fg(CLAURST_ACCENT)
+                .fg(jet_ACCENT)
                 .add_modifier(Modifier::UNDERLINED),
         ),
-        Span::styled(" to edit", Style::default().fg(CLAURST_MUTED)),
-        Span::styled("  Esc dismiss", Style::default().fg(CLAURST_MUTED)),
+        Span::styled(" to edit", Style::default().fg(JET_MUTED)),
+        Span::styled("  Esc dismiss", Style::default().fg(JET_MUTED)),
     ]);
 
     Paragraph::new(line)
-        .style(Style::default().bg(CLAURST_PANEL_BG).fg(CLAURST_TEXT))
+        .style(Style::default().bg(jet_PANEL_BG).fg(JET_TEXT))
         .render(notif_area, buf);
 }
 
@@ -186,9 +198,9 @@ mod tests {
     fn memory_notif_show_and_dismiss() {
         let mut state = MemoryUpdateNotificationState::new();
         assert!(!state.visible);
-        state.show("/home/user/.claurst/AGENTS.md");
+        state.show("/home/user/.jet/AGENTS.md");
         assert!(state.visible);
-        assert_eq!(state.memory_path, "/home/user/.claurst/AGENTS.md");
+        assert_eq!(state.memory_path, "/home/user/.jet/AGENTS.md");
         state.dismiss();
         assert!(!state.visible);
     }
@@ -242,21 +254,41 @@ mod tests {
     #[test]
     fn memory_notif_render_smoke() {
         let mut state = MemoryUpdateNotificationState::new();
-        state.show("/home/user/.claurst/AGENTS.md");
-        let area = Rect { x: 0, y: 0, width: 100, height: 4 };
+        state.show("/home/user/.jet/AGENTS.md");
+        let area = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 4,
+        };
         let mut buf = ratatui::buffer::Buffer::empty(area);
         render_memory_update_notification(&state, area, &mut buf);
-        let rendered = buf.content.iter().map(|c| c.symbol()).collect::<Vec<_>>().join("");
+        let rendered = buf
+            .content
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<Vec<_>>()
+            .join("");
         assert!(rendered.contains("Memory updated in"));
     }
 
     #[test]
     fn memory_notif_not_rendered_when_invisible() {
         let state = MemoryUpdateNotificationState::new();
-        let area = Rect { x: 0, y: 0, width: 100, height: 4 };
+        let area = Rect {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 4,
+        };
         let mut buf = ratatui::buffer::Buffer::empty(area);
         render_memory_update_notification(&state, area, &mut buf);
-        let rendered = buf.content.iter().map(|c| c.symbol()).collect::<Vec<_>>().join("");
+        let rendered = buf
+            .content
+            .iter()
+            .map(|c| c.symbol())
+            .collect::<Vec<_>>()
+            .join("");
         assert!(!rendered.contains("Memory updated"));
     }
 }

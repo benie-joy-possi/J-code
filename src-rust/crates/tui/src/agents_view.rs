@@ -11,13 +11,27 @@ use ratatui::{
 use std::path::{Path, PathBuf};
 
 use crate::overlays::{
-    begin_modal_buf, modal_header_line_area, render_modal_title_buf, CLAURST_ACCENT,
-    CLAURST_MUTED, CLAURST_PANEL_BG, CLAURST_TEXT,
+    begin_modal_buf, modal_header_line_area, render_modal_title_buf, jet_ACCENT, JET_MUTED,
+    jet_PANEL_BG, JET_TEXT,
 };
 
 // ---------------------------------------------------------------------------
 // Data types
 // ---------------------------------------------------------------------------
+
+/// The role of an agent in the manager-executor architecture.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AgentRole {
+    Normal,
+    Manager,
+    Executor { parent_id: String },
+}
+
+impl Default for AgentRole {
+    fn default() -> Self {
+        AgentRole::Normal
+    }
+}
 
 /// The current status of a sub-agent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,9 +82,16 @@ pub struct AgentInfo {
     pub is_coordinator: bool,
     /// Brief description or last output snippet.
     pub last_output: Option<String>,
+    /// Role in the managed agent architecture.
+    #[allow(dead_code)]
+    pub agent_role: AgentRole,
+    /// Model name used by this agent.
+    pub model_name: Option<String>,
+    /// Cost in USD accumulated by this agent.
+    pub cost_usd: f64,
 }
 
-/// A defined agent (from .claurst/agents/*.md or plugin).
+/// A defined agent (from .jet/agents/*.md or plugin).
 #[derive(Debug, Clone)]
 pub struct AgentDefinition {
     /// Backing markdown file path.
@@ -197,7 +218,7 @@ impl AgentEditorState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AgentsRoute {
     List,
-    Detail(usize),        // index into definitions
+    Detail(usize),         // index into definitions
     Editor(Option<usize>), // None = create new
 }
 
@@ -339,7 +360,7 @@ impl AgentsMenuState {
             .original_index
             .and_then(|idx| self.definitions.get(idx).map(|def| def.file_path.clone()))
             .unwrap_or_else(|| {
-                root.join(".claurst")
+                root.join(".jet")
                     .join("agents")
                     .join(format!("{}.md", slugify_agent_name(&self.editor.name)))
             });
@@ -371,17 +392,19 @@ impl Default for AgentsMenuState {
 // Data loading
 // ---------------------------------------------------------------------------
 
-/// Load agent definitions from `.claurst/agents/` in project root and home dir.
+/// Load agent definitions from `.jet/agents/` in project root and home dir.
 pub fn load_agent_definitions(project_root: &std::path::Path) -> Vec<AgentDefinition> {
     let mut defs = Vec::new();
     let dirs = [
-        dirs::home_dir().map(|h| h.join(".claurst").join("agents")),
-        Some(project_root.join(".claurst").join("agents")),
+        dirs::home_dir().map(|h| h.join(".jet").join("agents")),
+        Some(project_root.join(".jet").join("agents")),
     ];
 
     for dir_opt in &dirs {
         let Some(dir) = dir_opt else { continue };
-        let Ok(entries) = std::fs::read_dir(dir) else { continue };
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().map_or(false, |e| e == "md") {
@@ -405,8 +428,8 @@ fn parse_agent_def(path: &std::path::Path) -> Option<AgentDefinition> {
         let body = content[end + 4..].trim().to_string();
         let name = extract_yaml_str(front, "name").unwrap_or_else(|| stem.clone());
         let model = extract_yaml_str(front, "model");
-        let memory = extract_yaml_str(front, "memory_scope")
-            .or_else(|| extract_yaml_str(front, "memory"));
+        let memory =
+            extract_yaml_str(front, "memory_scope").or_else(|| extract_yaml_str(front, "memory"));
         let desc = extract_yaml_str(front, "description").unwrap_or_default();
         let tools = extract_yaml_list(front, "tools");
         (name, model, memory, desc, tools, body)
@@ -437,12 +460,7 @@ fn parse_agent_def(path: &std::path::Path) -> Option<AgentDefinition> {
 fn extract_yaml_str(front: &str, key: &str) -> Option<String> {
     for line in front.lines() {
         if let Some(rest) = line.strip_prefix(&format!("{key}:")) {
-            return Some(
-                rest.trim()
-                    .trim_matches('"')
-                    .trim_matches('\'')
-                    .to_string(),
-            );
+            return Some(rest.trim().trim_matches('"').trim_matches('\'').to_string());
         }
     }
     None
@@ -454,12 +472,7 @@ fn extract_yaml_list(front: &str, key: &str) -> Vec<String> {
             let rest = rest.trim().trim_matches('[').trim_matches(']');
             return rest
                 .split(',')
-                .map(|s| {
-                    s.trim()
-                        .trim_matches('"')
-                        .trim_matches('\'')
-                        .to_string()
-                })
+                .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
         }
@@ -580,7 +593,7 @@ pub fn render_agents_menu(state: &AgentsMenuState, area: Rect, buf: &mut Buffer)
     if let Some(subtitle_area) = modal_header_line_area(layout.header_area, 1) {
         Paragraph::new(Line::from(vec![Span::styled(
             subtitle,
-            Style::default().fg(CLAURST_MUTED),
+            Style::default().fg(JET_MUTED),
         )]))
         .render(subtitle_area, buf);
     }
@@ -601,7 +614,9 @@ pub fn render_agents_menu(state: &AgentsMenuState, area: Rect, buf: &mut Buffer)
     }
     Paragraph::new(Line::from(vec![Span::styled(
         footer,
-        Style::default().fg(CLAURST_MUTED).add_modifier(Modifier::ITALIC),
+        Style::default()
+            .fg(JET_MUTED)
+            .add_modifier(Modifier::ITALIC),
     )]))
     .render(layout.footer_area, buf);
 }
@@ -611,12 +626,14 @@ fn render_agents_list(state: &AgentsMenuState, area: Rect, buf: &mut Buffer) {
     if !state.active_agents.is_empty() {
         lines.push(Line::from(vec![Span::styled(
             " Active now",
-            Style::default().fg(CLAURST_ACCENT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(jet_ACCENT)
+                .add_modifier(Modifier::BOLD),
         )]));
         for agent in state.active_agents.iter().take(3) {
             lines.push(Line::from(vec![
-                Span::styled(" ", Style::default().fg(CLAURST_MUTED)),
-                Span::styled(agent.name.clone(), Style::default().fg(CLAURST_TEXT)),
+                Span::styled(" ", Style::default().fg(JET_MUTED)),
+                Span::styled(agent.name.clone(), Style::default().fg(JET_TEXT)),
                 Span::styled(
                     format!("  {}", agent.status.label()),
                     Style::default().fg(agent.status.color()),
@@ -647,7 +664,11 @@ fn render_agents_list(state: &AgentsMenuState, area: Rect, buf: &mut Buffer) {
         let abs_idx = start + i;
         let selected = state.selected_row == abs_idx + 1;
         let model_str = def.model.as_deref().unwrap_or("default");
-        let shadow_suffix = if def.shadowed_by.is_some() { " ⚠" } else { "" };
+        let shadow_suffix = if def.shadowed_by.is_some() {
+            " ⚠"
+        } else {
+            ""
+        };
         lines.push(agent_list_row(
             def.name.clone(),
             format!("{}  ·  {}{}", model_str, def.source, shadow_suffix),
@@ -656,50 +677,52 @@ fn render_agents_list(state: &AgentsMenuState, area: Rect, buf: &mut Buffer) {
         ));
     }
     Paragraph::new(lines)
-        .style(Style::default().bg(CLAURST_PANEL_BG))
+        .style(Style::default().bg(jet_PANEL_BG))
         .render(area, buf);
 }
 
 fn render_agent_detail(def: &AgentDefinition, area: Rect, buf: &mut Buffer) {
     let mut lines = Vec::new();
     lines.push(Line::from(vec![
-        Span::styled(" Name       ", Style::default().fg(CLAURST_MUTED)),
+        Span::styled(" Name       ", Style::default().fg(JET_MUTED)),
         Span::styled(
             def.name.clone(),
             Style::default()
-                .fg(CLAURST_TEXT)
+                .fg(JET_TEXT)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
             format!("  ({})", def.source),
-            Style::default().fg(CLAURST_MUTED),
+            Style::default().fg(JET_MUTED),
         ),
     ]));
     lines.push(Line::from(vec![
-        Span::styled(" Model      ", Style::default().fg(CLAURST_MUTED)),
+        Span::styled(" Model      ", Style::default().fg(JET_MUTED)),
         Span::raw(def.model.as_deref().unwrap_or("default").to_string()),
     ]));
     if let Some(mem) = &def.memory_scope {
         lines.push(Line::from(vec![
-            Span::styled(" Memory     ", Style::default().fg(CLAURST_MUTED)),
+            Span::styled(" Memory     ", Style::default().fg(JET_MUTED)),
             Span::raw(mem.clone()),
         ]));
     }
     if !def.tools.is_empty() {
         lines.push(Line::from(vec![
-            Span::styled(" Tools      ", Style::default().fg(CLAURST_MUTED)),
+            Span::styled(" Tools      ", Style::default().fg(JET_MUTED)),
             Span::raw(def.tools.join(", ")),
         ]));
     } else {
         lines.push(Line::from(vec![
-            Span::styled(" Tools      ", Style::default().fg(CLAURST_MUTED)),
-            Span::styled("All tools", Style::default().fg(CLAURST_MUTED)),
+            Span::styled(" Tools      ", Style::default().fg(JET_MUTED)),
+            Span::styled("All tools", Style::default().fg(JET_MUTED)),
         ]));
     }
     lines.push(Line::default());
     lines.push(Line::from(vec![Span::styled(
         " Description",
-        Style::default().fg(CLAURST_ACCENT).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(jet_ACCENT)
+            .add_modifier(Modifier::BOLD),
     )]));
     for line in def.description.lines() {
         lines.push(Line::from(vec![Span::raw(format!(" {}", line))]));
@@ -707,12 +730,14 @@ fn render_agent_detail(def: &AgentDefinition, area: Rect, buf: &mut Buffer) {
     lines.push(Line::default());
     lines.push(Line::from(vec![Span::styled(
         " Prompt",
-        Style::default().fg(CLAURST_ACCENT).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(jet_ACCENT)
+            .add_modifier(Modifier::BOLD),
     )]));
     for line in def.instructions.lines().take(8) {
         lines.push(Line::from(vec![Span::styled(
             format!(" {}", line),
-            Style::default().fg(CLAURST_TEXT),
+            Style::default().fg(JET_TEXT),
         )]));
     }
 
@@ -726,7 +751,7 @@ fn render_agent_detail(def: &AgentDefinition, area: Rect, buf: &mut Buffer) {
 
     Paragraph::new(lines)
         .wrap(ratatui::widgets::Wrap { trim: false })
-        .style(Style::default().bg(CLAURST_PANEL_BG))
+        .style(Style::default().bg(jet_PANEL_BG))
         .render(area, buf);
 }
 
@@ -734,9 +759,9 @@ fn render_agent_editor(state: &AgentsMenuState, area: Rect, buf: &mut Buffer) {
     let editor = &state.editor;
     let selected_style = Style::default()
         .fg(Color::White)
-        .bg(CLAURST_ACCENT)
+        .bg(jet_ACCENT)
         .add_modifier(Modifier::BOLD);
-    let normal_style = Style::default().fg(CLAURST_TEXT);
+    let normal_style = Style::default().fg(JET_TEXT);
 
     let field_style = |field: AgentEditorField| {
         if editor.selected_field == field {
@@ -763,7 +788,9 @@ fn render_agent_editor(state: &AgentsMenuState, area: Rect, buf: &mut Buffer) {
         Line::default(),
         Line::from(vec![Span::styled(
             " Prompt",
-            Style::default().fg(CLAURST_ACCENT).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(jet_ACCENT)
+                .add_modifier(Modifier::BOLD),
         )]),
     ];
 
@@ -797,7 +824,7 @@ fn render_agent_editor(state: &AgentsMenuState, area: Rect, buf: &mut Buffer) {
     }
 
     Paragraph::new(lines)
-        .style(Style::default().bg(CLAURST_PANEL_BG))
+        .style(Style::default().bg(jet_PANEL_BG))
         .render(area, buf);
 }
 
@@ -808,25 +835,29 @@ fn render_editor_field(label: &str, value: &str, value_style: Style) -> Line<'st
         value.to_string()
     };
     Line::from(vec![
-        Span::styled(
-            format!(" {label:<10} "),
-            Style::default().fg(CLAURST_MUTED),
-        ),
+        Span::styled(format!(" {label:<10} "), Style::default().fg(JET_MUTED)),
         Span::styled(display, value_style),
     ])
 }
 
 fn agent_list_row(title: String, meta: String, selected: bool, width: u16) -> Line<'static> {
-    let bg = if selected { CLAURST_ACCENT } else { CLAURST_PANEL_BG };
-    let title_style = if selected {
-        Style::default().fg(Color::White).bg(bg).add_modifier(Modifier::BOLD)
+    let bg = if selected {
+        jet_ACCENT
     } else {
-        Style::default().fg(CLAURST_TEXT).bg(bg)
+        jet_PANEL_BG
+    };
+    let title_style = if selected {
+        Style::default()
+            .fg(Color::White)
+            .bg(bg)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(JET_TEXT).bg(bg)
     };
     let meta_style = if selected {
         Style::default().fg(Color::Rgb(248, 220, 236)).bg(bg)
     } else {
-        Style::default().fg(CLAURST_MUTED).bg(bg)
+        Style::default().fg(JET_MUTED).bg(bg)
     };
     let mut spans = vec![
         Span::styled(" ", Style::default().bg(bg)),
@@ -879,16 +910,46 @@ pub fn render_coordinator_status(agents: &[AgentInfo], area: Rect, buf: &mut Buf
             height: 1,
         };
 
-        let prefix = if agent.is_coordinator { "● " } else { "  ○ " };
+        let (prefix, role_badge, role_color, indent) = match &agent.agent_role {
+            AgentRole::Manager => ("● ", "[MGR]", Color::Magenta, ""),
+            AgentRole::Executor { .. } => ("  ○ ", "[EXE]", Color::Cyan, "  "),
+            AgentRole::Normal => {
+                if agent.is_coordinator {
+                    ("● ", "", Color::Green, "")
+                } else {
+                    ("  ○ ", "", Color::DarkGray, "  ")
+                }
+            }
+        };
         let tool_str = agent
             .current_tool
             .as_deref()
             .map(|t| format!(" → {}", t))
             .unwrap_or_default();
+        let model_str = agent
+            .model_name
+            .as_deref()
+            .map(|m| format!(" ({})", m))
+            .unwrap_or_default();
+        let cost_str = if agent.cost_usd > 0.0 {
+            format!("  ${:.4}", agent.cost_usd)
+        } else {
+            String::new()
+        };
 
-        let line = Line::from(vec![
+        let mut spans = vec![
+            Span::styled(indent.to_string(), Style::default()),
             Span::styled(prefix, Style::default().fg(agent.status.color())),
+        ];
+        if !role_badge.is_empty() {
+            spans.push(Span::styled(
+                format!("{} ", role_badge),
+                Style::default().fg(role_color).add_modifier(Modifier::BOLD),
+            ));
+        }
+        spans.extend(vec![
             Span::styled(agent.name.clone(), Style::default().fg(Color::White)),
+            Span::styled(model_str, Style::default().fg(Color::DarkGray)),
             Span::styled(
                 format!(" [{}]", agent.status.label()),
                 Style::default().fg(agent.status.color()),
@@ -898,8 +959,10 @@ pub fn render_coordinator_status(agents: &[AgentInfo], area: Rect, buf: &mut Buf
                 Style::default().fg(Color::DarkGray),
             ),
             Span::styled(tool_str, Style::default().fg(Color::Yellow)),
+            Span::styled(cost_str, Style::default().fg(Color::DarkGray)),
         ]);
 
+        let line = Line::from(spans);
         Paragraph::new(line).render(row_area, buf);
     }
 }

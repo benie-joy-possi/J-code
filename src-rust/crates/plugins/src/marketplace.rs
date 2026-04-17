@@ -209,7 +209,7 @@ pub async fn marketplace_update(name: &str) -> Result<Option<String>, String> {
 /// List all installed plugins.
 pub fn list_installed() -> Vec<InstalledPlugin> {
     let plugins_dir = dirs::home_dir()
-        .map(|h| h.join(".claurst").join("plugins"))
+        .map(|h| h.join(".jet").join("plugins"))
         .unwrap_or_default();
 
     let Ok(entries) = std::fs::read_dir(&plugins_dir) else {
@@ -230,8 +230,8 @@ pub fn list_installed() -> Vec<InstalledPlugin> {
 
             let (version, description) = if yaml_path.exists() {
                 let content = std::fs::read_to_string(&yaml_path).unwrap_or_default();
-                let version = extract_yaml_str(&content, "version")
-                    .unwrap_or_else(|| "0.0.0".to_string());
+                let version =
+                    extract_yaml_str(&content, "version").unwrap_or_else(|| "0.0.0".to_string());
                 let description = extract_yaml_str(&content, "description").unwrap_or_default();
                 (version, description)
             } else if json_path.exists() {
@@ -270,7 +270,7 @@ pub fn marketplace_uninstall(name: &str) -> Result<(), String> {
 fn plugin_install_dir(name: &str) -> std::path::PathBuf {
     dirs::home_dir()
         .unwrap_or_default()
-        .join(".claurst")
+        .join(".jet")
         .join("plugins")
         .join(name)
 }
@@ -278,12 +278,7 @@ fn plugin_install_dir(name: &str) -> std::path::PathBuf {
 fn extract_yaml_str(content: &str, key: &str) -> Option<String> {
     for line in content.lines() {
         if let Some(rest) = line.strip_prefix(&format!("{key}:")) {
-            return Some(
-                rest.trim()
-                    .trim_matches('"')
-                    .trim_matches('\'')
-                    .to_string(),
-            );
+            return Some(rest.trim().trim_matches('"').trim_matches('\'').to_string());
         }
     }
     None

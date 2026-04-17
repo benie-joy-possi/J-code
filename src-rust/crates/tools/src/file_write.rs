@@ -17,7 +17,7 @@ struct FileWriteInput {
 #[async_trait]
 impl Tool for FileWriteTool {
     fn name(&self) -> &str {
-        claurst_core::constants::TOOL_NAME_FILE_WRITE
+        jet_core::constants::TOOL_NAME_FILE_WRITE
     }
 
     fn description(&self) -> &str {
@@ -57,11 +57,9 @@ impl Tool for FileWriteTool {
         debug!(path = %path.display(), "Writing file");
 
         // Permission check
-        if let Err(e) = ctx.check_permission(
-            self.name(),
-            &format!("Write {}", path.display()),
-            false,
-        ) {
+        if let Err(e) =
+            ctx.check_permission(self.name(), &format!("Write {}", path.display()), false)
+        {
             return ToolResult::error(e.to_string());
         }
 
@@ -97,11 +95,7 @@ impl Tool for FileWriteTool {
 
         // Write the file
         if let Err(e) = tokio::fs::write(&path, &params.content).await {
-            return ToolResult::error(format!(
-                "Failed to write file {}: {}",
-                path.display(),
-                e
-            ));
+            return ToolResult::error(format!("Failed to write file {}: {}", path.display(), e));
         }
 
         ctx.record_file_change(

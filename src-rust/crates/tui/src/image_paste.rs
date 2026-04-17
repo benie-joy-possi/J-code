@@ -49,6 +49,18 @@ pub fn read_clipboard_text() -> Option<String> {
     }
 }
 
+/// Read text from the primary selection when supported (Linux/X11/Wayland).
+pub fn read_primary_text() -> Option<String> {
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    {
+        None
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        read_primary_text_linux()
+    }
+}
+
 #[cfg(target_os = "macos")]
 fn read_text_macos() -> Option<String> {
     let out = Command::new("pbpaste").output().ok()?;
@@ -61,13 +73,32 @@ fn read_text_macos() -> Option<String> {
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn read_text_linux() -> Option<String> {
-    // Try xclip first, then wl-paste (Wayland)
-    for (prog, args) in &[
-        ("xclip", vec!["-selection", "clipboard", "-o"]),
-        ("xsel", vec!["--clipboard", "--output"]),
-        ("wl-paste", vec!["--no-newline"]),
-    ] {
-        if let Ok(out) = Command::new(prog).args(args).output() {
+    read_text_linux_selection(false)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn read_primary_text_linux() -> Option<String> {
+    read_text_linux_selection(true)
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn read_text_linux_selection(primary: bool) -> Option<String> {
+    let commands: &[(&str, &[&str])] = if primary {
+        &[
+            ("wl-paste", &["--primary", "--no-newline"]),
+            ("xclip", &["-selection", "primary", "-o"]),
+            ("xsel", &["--primary", "--output"]),
+        ]
+    } else {
+        &[
+            ("wl-paste", &["--no-newline"]),
+            ("xclip", &["-selection", "clipboard", "-o"]),
+            ("xsel", &["--clipboard", "--output"]),
+        ]
+    };
+
+    for (prog, args) in commands {
+        if let Ok(out) = Command::new(prog).args(*args).output() {
             if out.status.success() && !out.stdout.is_empty() {
                 return Some(String::from_utf8_lossy(&out.stdout).into_owned());
             }
@@ -83,7 +114,11 @@ fn read_text_windows() -> Option<String> {
         .output()
         .ok()?;
     if out.status.success() && !out.stdout.is_empty() {
-        Some(String::from_utf8_lossy(&out.stdout).trim_end_matches('\n').to_string())
+        Some(
+            String::from_utf8_lossy(&out.stdout)
+                .trim_end_matches('\n')
+                .to_string(),
+        )
     } else {
         None
     }
@@ -135,7 +170,10 @@ close access fp"#,
         tmp.display()
     );
 
-    let write_out = Command::new("osascript").args(["-e", &script]).output().ok()?;
+    let write_out = Command::new("osascript")
+        .args(["-e", &script])
+        .output()
+        .ok()?;
     if write_out.status.success() && tmp.exists() && tmp.metadata().ok()?.len() > 0 {
         let dims = png_dimensions(&tmp);
         Some(PastedImage {
@@ -216,7 +254,10 @@ fn try_save_linux_image(path: &PathBuf) -> bool {
         }
     }
     // wl-paste
-    if let Ok(out) = Command::new("wl-paste").args(["--type", "image/png"]).output() {
+    if let Ok(out) = Command::new("wl-paste")
+        .args(["--type", "image/png"])
+        .output()
+    {
         if out.status.success() && !out.stdout.is_empty() {
             if std::fs::write(path, &out.stdout).is_ok() {
                 return true;
@@ -283,11 +324,17 @@ fn read_image_windows() -> Option<PastedImage> {
 /// Write text to the system clipboard. Returns `true` on success.
 pub fn write_clipboard_text(text: &str) -> bool {
     #[cfg(target_os = "macos")]
-    { write_text_macos_w(text) }
+    {
+        write_text_macos_w(text)
+    }
     #[cfg(target_os = "windows")]
-    { write_text_windows_w(text) }
+    {
+        write_text_windows_w(text)
+    }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    { write_text_linux_w(text) }
+    {
+        write_text_linux_w(text)
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -309,7 +356,8 @@ fn write_text_windows_w(text: &str) -> bool {
     use std::io::Write;
     use std::process::Stdio;
     // PowerShell Set-Clipboard reads from stdin via pipe
-    let script = format!("[Console]::InputEncoding = [System.Text.Encoding]::UTF8; $input | Set-Clipboard");
+    let script =
+        format!("[Console]::InputEncoding = [System.Text.Encoding]::UTF8; $input | Set-Clipboard");
     let mut child = match Command::new("powershell")
         .args(["-NoProfile", "-Command", &script])
         .stdin(Stdio::piped())
@@ -326,14 +374,32 @@ fn write_text_windows_w(text: &str) -> bool {
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn write_text_linux_w(text: &str) -> bool {
+    let clipboard_ok = write_text_linux_selection(text, false);
+    let primary_ok = write_text_linux_selection(text, true);
+    clipboard_ok || primary_ok
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn write_text_linux_selection(text: &str, primary: bool) -> bool {
     use std::io::Write;
     use std::process::Stdio;
-    for (prog, args) in &[
-        ("xclip", vec!["-selection", "clipboard"]),
-        ("xsel", vec!["--clipboard", "--input"]),
-        ("wl-copy", vec![]),
-    ] {
-        if let Ok(mut child) = Command::new(prog).args(args).stdin(Stdio::piped()).spawn() {
+
+    let commands: &[(&str, &[&str])] = if primary {
+        &[
+            ("wl-copy", &["--primary"]),
+            ("xclip", &["-selection", "primary"]),
+            ("xsel", &["--primary", "--input"]),
+        ]
+    } else {
+        &[
+            ("wl-copy", &[]),
+            ("xclip", &["-selection", "clipboard"]),
+            ("xsel", &["--clipboard", "--input"]),
+        ]
+    };
+
+    for (prog, args) in commands {
+        if let Ok(mut child) = Command::new(prog).args(*args).stdin(Stdio::piped()).spawn() {
             if let Some(mut stdin) = child.stdin.take() {
                 let _ = stdin.write_all(text.as_bytes());
             }
@@ -447,10 +513,8 @@ mod tests {
         let tmp = make_temp_png().unwrap();
         std::fs::write(&tmp, b"hello world").unwrap();
         let b64 = encode_image_base64(&tmp).unwrap();
-        let decoded = base64::Engine::decode(
-            &base64::engine::general_purpose::STANDARD,
-            &b64,
-        ).unwrap();
+        let decoded =
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &b64).unwrap();
         assert_eq!(decoded, b"hello world");
         let _ = std::fs::remove_file(&tmp);
     }

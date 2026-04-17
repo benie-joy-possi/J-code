@@ -2,9 +2,9 @@
 //! on disk and (optionally) from git URLs.
 //!
 //! Search priority (first match wins for a given skill name):
-//!   1. Project `.claurst/skills/` — walk up from `cwd`
+//!   1. Project `.jet/skills/` — walk up from `cwd`
 //!   2. Project `.agents/skills/`  — walk up from `cwd`
-//!   3. Global `~/.claurst/skills/`
+//!   3. Global `~/.jet/skills/`
 //!   4. Configured extra paths from `SkillsConfig.paths`
 //!   5. Git-URL repos from `SkillsConfig.urls` (cloned once, then cached)
 
@@ -163,7 +163,7 @@ pub fn discover_skills(
     {
         let mut dir: &Path = cwd;
         loop {
-            add(scan_dir(&dir.join(".claurst").join("skills")));
+            add(scan_dir(&dir.join(".jet").join("skills")));
             add(scan_dir(&dir.join(".agents").join("skills")));
             match dir.parent() {
                 Some(parent) if parent != dir => dir = parent,
@@ -172,9 +172,9 @@ pub fn discover_skills(
         }
     }
 
-    // ---- 2. Global skills: ~/.claurst/skills/ --------------------------------
+    // ---- 2. Global skills: ~/.jet/skills/ --------------------------------
     if let Some(home) = dirs::home_dir() {
-        add(scan_dir(&home.join(".claurst").join("skills")));
+        add(scan_dir(&home.join(".jet").join("skills")));
     }
 
     // ---- 3. Configured extra paths ------------------------------------------
@@ -209,17 +209,14 @@ pub fn discover_skills(
 
 /// Clone or reuse a cached git repo and return skills found in it.
 ///
-/// Cache location: `<system-cache>/claurst/skills/<repo-name>/`
+/// Cache location: `<system-cache>/jet/skills/<repo-name>/`
 /// On first access the repo is cloned with `--depth=1`.
 /// Subsequent calls use the already-cloned cache directory as-is.
 fn fetch_git_skills(url: &str) -> Option<Vec<DiscoveredSkill>> {
-    let cache_dir = dirs::cache_dir()?.join("claurst").join("skills");
+    let cache_dir = dirs::cache_dir()?.join("jet").join("skills");
 
     // Use the last path segment of the URL as the local directory name.
-    let repo_name = url
-        .split('/')
-        .last()?
-        .trim_end_matches(".git");
+    let repo_name = url.split('/').last()?.trim_end_matches(".git");
 
     if repo_name.is_empty() {
         tracing::warn!(url, "skill_discovery: cannot derive repo name from git URL");
@@ -293,7 +290,8 @@ mod tests {
 
     #[test]
     fn test_parse_with_frontmatter() {
-        let content = "---\nname: review\ndescription: Review code changes\n---\n\nPlease review $ARGUMENTS";
+        let content =
+            "---\nname: review\ndescription: Review code changes\n---\n\nPlease review $ARGUMENTS";
         let path = PathBuf::from("review.md");
         let skill = parse_skill_file(content, &path).unwrap();
         assert_eq!(skill.name, "review");
@@ -339,7 +337,11 @@ mod tests {
     #[test]
     fn test_scan_dir_finds_skills() {
         let tmp = make_temp_dir();
-        write_file(tmp.path(), "review.md", "---\nname: review\n---\nReview $ARGUMENTS");
+        write_file(
+            tmp.path(),
+            "review.md",
+            "---\nname: review\n---\nReview $ARGUMENTS",
+        );
         write_file(tmp.path(), "debug.md", "Debug help.");
         write_file(tmp.path(), "not-md.txt", "ignored");
 
@@ -361,9 +363,13 @@ mod tests {
     #[test]
     fn test_discover_from_project_dir() {
         let tmp = make_temp_dir();
-        let skills_dir = tmp.path().join(".claurst").join("skills");
+        let skills_dir = tmp.path().join(".jet").join("skills");
         std::fs::create_dir_all(&skills_dir).unwrap();
-        write_file(&skills_dir, "myskill.md", "---\nname: myskill\ndescription: Test\n---\nDo it.");
+        write_file(
+            &skills_dir,
+            "myskill.md",
+            "---\nname: myskill\ndescription: Test\n---\nDo it.",
+        );
 
         let config = crate::config::SkillsConfig::default();
         let discovered = discover_skills(tmp.path(), &config);
@@ -375,7 +381,11 @@ mod tests {
     fn test_discover_extra_paths() {
         let tmp = make_temp_dir();
         let extra = make_temp_dir();
-        write_file(extra.path(), "extra.md", "---\nname: extra\n---\nExtra skill.");
+        write_file(
+            extra.path(),
+            "extra.md",
+            "---\nname: extra\n---\nExtra skill.",
+        );
 
         let config = crate::config::SkillsConfig {
             paths: vec![extra.path().to_str().unwrap().to_string()],
@@ -388,12 +398,20 @@ mod tests {
     #[test]
     fn test_discover_deduplicates_first_wins() {
         let tmp = make_temp_dir();
-        let proj_skills = tmp.path().join(".claurst").join("skills");
+        let proj_skills = tmp.path().join(".jet").join("skills");
         std::fs::create_dir_all(&proj_skills).unwrap();
-        write_file(&proj_skills, "dup.md", "---\nname: dup\ndescription: project\n---\nProject.");
+        write_file(
+            &proj_skills,
+            "dup.md",
+            "---\nname: dup\ndescription: project\n---\nProject.",
+        );
 
         let extra = make_temp_dir();
-        write_file(extra.path(), "dup.md", "---\nname: dup\ndescription: extra\n---\nExtra.");
+        write_file(
+            extra.path(),
+            "dup.md",
+            "---\nname: dup\ndescription: extra\n---\nExtra.",
+        );
 
         let config = crate::config::SkillsConfig {
             paths: vec![extra.path().to_str().unwrap().to_string()],

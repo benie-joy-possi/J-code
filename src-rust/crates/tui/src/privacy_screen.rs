@@ -3,7 +3,7 @@
 // A focused overlay with toggle-style controls for privacy preferences.
 // Opened by /privacy-settings. Changes are persisted via Settings::save_sync().
 
-use claurst_core::config::Settings;
+use jet_core::config::Settings;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -110,13 +110,13 @@ fn default_toggles() -> Vec<PrivacyToggle> {
             key: "usage_sharing",
             label: "Usage Sharing",
             description: "Share aggregate usage patterns (no personal data) to help \
-                          Anthropic understand how Claurst is used.",
+                          Anthropic understand how jet is used.",
             enabled: false,
         },
         PrivacyToggle {
             key: "api_request_logging",
             label: "API Request Logging",
-            description: "Log API requests to a local file (~/.claurst/api_requests.log) \
+            description: "Log API requests to a local file (~/.jet/api_requests.log) \
                           for debugging. Logs are stored locally only.",
             enabled: false,
         },
@@ -187,15 +187,10 @@ pub fn render_privacy_screen(frame: &mut Frame, screen: &PrivacyScreen, area: Re
         // Label row with toggle
         lines.push(Line::from(vec![
             Span::raw(prefix),
-            Span::styled(
-                format!("{:<28}", toggle.label),
-                label_style,
-            ),
+            Span::styled(format!("{:<28}", toggle.label), label_style),
             Span::styled(
                 toggle_text.to_string(),
-                Style::default()
-                    .fg(toggle_fg)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(toggle_fg).add_modifier(Modifier::BOLD),
             ),
         ]));
 
@@ -263,10 +258,7 @@ fn word_wrap_str(text: &str, width: usize) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 /// Returns `true` if the key event was consumed by the privacy screen.
-pub fn handle_privacy_key(
-    screen: &mut PrivacyScreen,
-    key: crossterm::event::KeyEvent,
-) -> bool {
+pub fn handle_privacy_key(screen: &mut PrivacyScreen, key: crossterm::event::KeyEvent) -> bool {
     use crossterm::event::KeyCode;
 
     if !screen.visible {

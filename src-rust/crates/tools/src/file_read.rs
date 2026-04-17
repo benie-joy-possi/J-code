@@ -20,7 +20,7 @@ struct FileReadInput {
 #[async_trait]
 impl Tool for FileReadTool {
     fn name(&self) -> &str {
-        claurst_core::constants::TOOL_NAME_FILE_READ
+        jet_core::constants::TOOL_NAME_FILE_READ
     }
 
     fn description(&self) -> &str {
@@ -115,10 +115,7 @@ impl Tool for FileReadTool {
         };
 
         if content.is_empty() {
-            return ToolResult::success(format!(
-                "[File {} exists but is empty]",
-                path.display()
-            ));
+            return ToolResult::success(format!("[File {} exists but is empty]", path.display()));
         }
 
         let lines: Vec<&str> = content.lines().collect();

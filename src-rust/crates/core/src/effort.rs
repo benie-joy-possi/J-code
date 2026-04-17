@@ -11,7 +11,7 @@
 // EffortLevel enum
 // ---------------------------------------------------------------------------
 
-/// The four named effort levels supported by Claurst.
+/// The four named effort levels supported by jet.
 ///
 /// Matches the `EffortLevel` type from `src/entrypoints/sdk/runtimeTypes.ts`
 /// / `src/utils/effort.ts`.
@@ -136,7 +136,12 @@ mod tests {
             EffortLevel::Max,
         ] {
             let parsed = EffortLevel::from_str(level.as_str());
-            assert_eq!(parsed, Some(level), "from_str({:?}) should round-trip", level);
+            assert_eq!(
+                parsed,
+                Some(level),
+                "from_str({:?}) should round-trip",
+                level
+            );
         }
     }
 

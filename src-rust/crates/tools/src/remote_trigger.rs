@@ -1,10 +1,10 @@
 //! RemoteTriggerTool — cross-session event dispatch.
 //! Mirrors src/tools/RemoteTriggerTool/.
 
+use crate::{PermissionLevel, Tool, ToolContext, ToolResult};
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use crate::{PermissionLevel, Tool, ToolContext, ToolResult};
 
 /// Input schema for RemoteTriggerTool.
 #[derive(Debug, Deserialize)]
@@ -28,7 +28,7 @@ impl Tool for RemoteTriggerTool {
     }
 
     fn description(&self) -> &str {
-        "Send a named event to another active Claurst session. \
+        "Send a named event to another active jet session. \
          Use this to coordinate across parallel sessions or notify a parent session of results."
     }
 

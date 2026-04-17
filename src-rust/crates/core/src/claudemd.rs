@@ -17,13 +17,13 @@ use std::time::SystemTime;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryScope {
-    /// `~/.claurst/rules/*.md` — global managed policy.
+    /// `~/.jet/rules/*.md` — global managed policy.
     Managed,
-    /// `~/.claurst/AGENTS.md` — user-level memory.
+    /// `~/.jet/AGENTS.md` — user-level memory.
     User,
     /// `{project_root}/AGENTS.md` — project-level memory.
     Project,
-    /// `{project_root}/.claurst/AGENTS.md` — local override.
+    /// `{project_root}/.jet/AGENTS.md` — local override.
     Local,
 }
 
@@ -63,7 +63,11 @@ impl MemoryCache {
     pub fn get(&self, path: &Path) -> Option<&str> {
         let mtime = std::fs::metadata(path).ok()?.modified().ok()?;
         let (cached_mtime, content) = self.entries.get(path)?;
-        if *cached_mtime == mtime { Some(content.as_str()) } else { None }
+        if *cached_mtime == mtime {
+            Some(content.as_str())
+        } else {
+            None
+        }
     }
 
     /// Store file content with its current mtime.
@@ -133,9 +137,7 @@ pub fn expand_includes(
             let path_str = path_str.trim();
             // Resolve relative to base_dir; expand ~ to home dir.
             let include_path = if path_str.starts_with('~') {
-                dirs::home_dir()
-                    .unwrap_or_default()
-                    .join(&path_str[2..])
+                dirs::home_dir().unwrap_or_default().join(&path_str[2..])
             } else if Path::new(path_str).is_absolute() {
                 PathBuf::from(path_str)
             } else {
@@ -144,13 +146,19 @@ pub fn expand_includes(
 
             let canonical = include_path.canonicalize().unwrap_or(include_path.clone());
             if visited.contains(&canonical) {
-                result.push_str(&format!("<!-- circular @include {} skipped -->\n", path_str));
+                result.push_str(&format!(
+                    "<!-- circular @include {} skipped -->\n",
+                    path_str
+                ));
                 continue;
             }
             if let Ok(included) = std::fs::read_to_string(&include_path) {
                 // Check max size.
                 if included.len() > 40 * 1024 {
-                    result.push_str(&format!("<!-- @include {} exceeds 40KB limit -->\n", path_str));
+                    result.push_str(&format!(
+                        "<!-- @include {} exceeds 40KB limit -->\n",
+                        path_str
+                    ));
                     continue;
                 }
                 visited.insert(canonical);
@@ -192,7 +200,12 @@ pub fn load_memory_file(path: &Path, scope: MemoryScope) -> Option<MemoryFileInf
     let (frontmatter, body) = parse_frontmatter(&raw);
     let mut visited = HashSet::new();
     visited.insert(path.canonicalize().unwrap_or(path.to_path_buf()));
-    let content = expand_includes(body, path.parent().unwrap_or(Path::new(".")), &mut visited, 0);
+    let content = expand_includes(
+        body,
+        path.parent().unwrap_or(Path::new(".")),
+        &mut visited,
+        0,
+    );
 
     Some(MemoryFileInfo {
         path: path.to_path_buf(),
@@ -203,21 +216,43 @@ pub fn load_memory_file(path: &Path, scope: MemoryScope) -> Option<MemoryFileInf
     })
 }
 
-/// Load all AGENTS.md files for the given project root, in priority order.
+/// Load memory files from a directory for a given scope.
+///
+/// Loads `AGENTS.md` first (primary/universal standard), then `CLAUDE.md` if
+/// present (Claude-specific additions or overrides). Either file may be absent.
+fn load_scope_files(dir: &Path, scope: MemoryScope, files: &mut Vec<MemoryFileInfo>) {
+    for name in &["AGENTS.md", "CLAUDE.md"] {
+        let path = dir.join(name);
+        if path.exists() {
+            if let Some(f) = load_memory_file(&path, scope) {
+                files.push(f);
+            }
+        }
+    }
+}
+
+/// Load all memory files for the given project root, in priority order.
+///
+/// At each scope `AGENTS.md` is loaded first (universal standard), followed by
+/// `CLAUDE.md` if present (Claude-specific context). Either or both may exist.
 ///
 /// Returned list is ordered: Managed (highest) → User → Project → Local.
 pub fn load_all_memory_files(project_root: &Path) -> Vec<MemoryFileInfo> {
     let mut files = Vec::new();
 
-    // 1. Managed: ~/.claurst/rules/*.md
+    // 1. Managed: ~/.jet/rules/*.md
     if let Some(home) = dirs::home_dir() {
-        let rules_dir = home.join(".claurst/rules");
+        let rules_dir = home.join(".jet/rules");
         if let Ok(entries) = std::fs::read_dir(&rules_dir) {
             let mut paths: Vec<PathBuf> = entries
                 .flatten()
                 .filter_map(|e| {
                     let p = e.path();
-                    if p.extension().map_or(false, |x| x == "md") { Some(p) } else { None }
+                    if p.extension().map_or(false, |x| x == "md") {
+                        Some(p)
+                    } else {
+                        None
+                    }
                 })
                 .collect();
             paths.sort();
@@ -228,30 +263,19 @@ pub fn load_all_memory_files(project_root: &Path) -> Vec<MemoryFileInfo> {
             }
         }
 
-        // 2. User: ~/.claurst/AGENTS.md
-        let user_claude = home.join(".claurst/AGENTS.md");
-        if user_claude.exists() {
-            if let Some(f) = load_memory_file(&user_claude, MemoryScope::User) {
-                files.push(f);
-            }
-        }
+        // 2. User: ~/.jet/AGENTS.md then ~/.jet/CLAUDE.md
+        load_scope_files(&home.join(".jet"), MemoryScope::User, &mut files);
     }
 
-    // 3. Project: {project_root}/AGENTS.md
-    let project_claude = project_root.join("AGENTS.md");
-    if project_claude.exists() {
-        if let Some(f) = load_memory_file(&project_claude, MemoryScope::Project) {
-            files.push(f);
-        }
-    }
+    // 3. Project: {project_root}/AGENTS.md then {project_root}/CLAUDE.md
+    load_scope_files(project_root, MemoryScope::Project, &mut files);
 
-    // 4. Local: {project_root}/.claurst/AGENTS.md
-    let local_claude = project_root.join(".claurst/AGENTS.md");
-    if local_claude.exists() {
-        if let Some(f) = load_memory_file(&local_claude, MemoryScope::Local) {
-            files.push(f);
-        }
-    }
+    // 4. Local: {project_root}/.jet/AGENTS.md then {project_root}/.jet/CLAUDE.md
+    load_scope_files(
+        &project_root.join(".jet"),
+        MemoryScope::Local,
+        &mut files,
+    );
 
     files
 }
@@ -288,13 +312,59 @@ mod tests {
     }
 
     #[test]
+    fn load_scope_prefers_agents_then_claude() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("AGENTS.md"), "agents content").unwrap();
+        std::fs::write(tmp.path().join("CLAUDE.md"), "claude content").unwrap();
+
+        let files = load_all_memory_files(tmp.path());
+        // Filter to just the project-scope files from our temp dir.
+        let project: Vec<_> = files
+            .iter()
+            .filter(|f| f.path.starts_with(tmp.path()))
+            .collect();
+        assert_eq!(
+            project.len(),
+            2,
+            "both AGENTS.md and CLAUDE.md should be loaded"
+        );
+        assert!(
+            project[0].path.ends_with("AGENTS.md"),
+            "AGENTS.md must come first"
+        );
+        assert!(
+            project[1].path.ends_with("CLAUDE.md"),
+            "CLAUDE.md must follow"
+        );
+    }
+
+    #[test]
+    fn load_scope_claudemd_only_fallback() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("CLAUDE.md"), "claude only").unwrap();
+
+        let files = load_all_memory_files(tmp.path());
+        let project: Vec<_> = files
+            .iter()
+            .filter(|f| f.path.starts_with(tmp.path()))
+            .collect();
+        assert_eq!(project.len(), 1);
+        assert!(project[0].path.ends_with("CLAUDE.md"));
+    }
+
+    #[test]
     fn expand_includes_circular() {
         let tmp = tempfile::tempdir().unwrap();
         let a = tmp.path().join("a.md");
         let b = tmp.path().join("b.md");
         std::fs::write(&a, "@include b.md\n").unwrap();
         std::fs::write(&b, "@include a.md\ncontent\n").unwrap();
-        let result = expand_includes("@include a.md\n", tmp.path(), &mut std::collections::HashSet::new(), 0);
+        let result = expand_includes(
+            "@include a.md\n",
+            tmp.path(),
+            &mut std::collections::HashSet::new(),
+            0,
+        );
         // Should not infinite-loop; circular reference comment present.
         assert!(result.contains("circular") || result.contains("content"));
     }

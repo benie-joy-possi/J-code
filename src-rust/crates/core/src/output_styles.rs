@@ -3,8 +3,8 @@
 //! Styles are applied by injecting `OutputStyleDef::prompt` into the system
 //! prompt.  Built-in styles are defined in code; users can add their own by
 //! placing `.md` or `.json` files in:
-//!   - Global: `~/.claurst/output-styles/`
-//!   - Project: `.claurst/output-styles/`
+//!   - Global: `~/.jet/output-styles/`
+//!   - Project: `.jet/output-styles/`
 //!
 //! Markdown style files have a simple structure:
 //!   Line 1: `# <Label>` (heading becomes the label)
@@ -41,7 +41,7 @@ impl OutputStyleDef {
         Self {
             name: "default".to_string(),
             label: "Default".to_string(),
-            description: "Standard Claurst responses.".to_string(),
+            description: "Standard jet responses.".to_string(),
             prompt: String::new(),
         }
     }
@@ -154,7 +154,11 @@ fn load_style_file(path: &Path) -> Option<OutputStyleDef> {
 
     let raw_label = lines.next().unwrap_or("").trim().to_string();
     let label = raw_label.trim_start_matches('#').trim().to_string();
-    let label = if label.is_empty() { stem.clone() } else { label };
+    let label = if label.is_empty() {
+        stem.clone()
+    } else {
+        label
+    };
 
     let description = lines
         .next()
@@ -180,7 +184,7 @@ fn load_style_file(path: &Path) -> Option<OutputStyleDef> {
 /// Return all styles available for `config_dir`:
 /// built-ins first, then styles from `<config_dir>/output-styles/`.
 ///
-/// `config_dir` is typically `~/.claurst`.
+/// `config_dir` is typically `~/.jet`.
 pub fn all_styles(config_dir: &Path) -> Vec<OutputStyleDef> {
     let mut styles = builtin_styles();
     let user_dir = config_dir.join("output-styles");
@@ -197,8 +201,7 @@ pub fn find_style<'a>(styles: &'a [OutputStyleDef], name: &str) -> Option<&'a Ou
 // Runtime style registry (populated by plugins at startup)
 // ---------------------------------------------------------------------------
 
-static RUNTIME_STYLES: Lazy<Mutex<Vec<OutputStyleDef>>> =
-    Lazy::new(|| Mutex::new(Vec::new()));
+static RUNTIME_STYLES: Lazy<Mutex<Vec<OutputStyleDef>>> = Lazy::new(|| Mutex::new(Vec::new()));
 
 /// Register an `OutputStyleDef` at runtime (called from plugin loading code).
 ///
@@ -215,10 +218,7 @@ pub fn register_runtime_style(style: OutputStyleDef) {
 
 /// Return all runtime-registered styles.
 pub fn runtime_styles() -> Vec<OutputStyleDef> {
-    RUNTIME_STYLES
-        .lock()
-        .map(|g| g.clone())
-        .unwrap_or_default()
+    RUNTIME_STYLES.lock().map(|g| g.clone()).unwrap_or_default()
 }
 
 /// Like `all_styles`, but also includes runtime-registered plugin styles.
@@ -396,7 +396,8 @@ mod tests {
 
         // Write a user style file.
         let mut f = std::fs::File::create(output_styles_dir.join("pirate.md")).unwrap();
-        f.write_all(b"# Pirate\nSpeak like a pirate.\n\nArrr matey!").unwrap();
+        f.write_all(b"# Pirate\nSpeak like a pirate.\n\nArrr matey!")
+            .unwrap();
 
         let styles = all_styles(dir.path());
         assert!(styles.iter().any(|s| s.name == "pirate"));

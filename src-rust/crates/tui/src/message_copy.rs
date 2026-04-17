@@ -7,20 +7,20 @@
 //! - JSON: Serialized message data
 //! - Selection only: Selected text only
 
-use claurst_core::Message;
+use jet_core::Message;
 use serde_json::json;
 use std::io::Write;
 
 /// Copy message as markdown (preserving formatting)
 pub fn copy_as_markdown(message: &Message) -> String {
     let content = match &message.content {
-        claurst_core::MessageContent::Text(text) => text.clone(),
-        claurst_core::MessageContent::Blocks(blocks) => {
+        jet_core::MessageContent::Text(text) => text.clone(),
+        jet_core::MessageContent::Blocks(blocks) => {
             blocks
                 .iter()
                 .filter_map(|block| match block {
-                    claurst_core::ContentBlock::Text { text } => Some(text.clone()),
-                    claurst_core::ContentBlock::Thinking {
+                    jet_core::ContentBlock::Text { text } => Some(text.clone()),
+                    jet_core::ContentBlock::Thinking {
                         thinking,
                         signature,
                     } => {
@@ -30,7 +30,7 @@ pub fn copy_as_markdown(message: &Message) -> String {
                             signature, thinking
                         ))
                     }
-                    claurst_core::ContentBlock::ToolUse { id, name, input } => {
+                    jet_core::ContentBlock::ToolUse { id, name, input } => {
                         // Format tool use as code block
                         Some(format!(
                             "```json\n// Tool: {}\n// ID: {}\n{}\n```",
@@ -39,7 +39,7 @@ pub fn copy_as_markdown(message: &Message) -> String {
                             serde_json::to_string_pretty(input).unwrap_or_default()
                         ))
                     }
-                    claurst_core::ContentBlock::ToolResult {
+                    jet_core::ContentBlock::ToolResult {
                         tool_use_id: _,
                         content,
                         is_error,
@@ -50,22 +50,17 @@ pub fn copy_as_markdown(message: &Message) -> String {
                             ""
                         };
                         let result_text = match content {
-                            claurst_core::ToolResultContent::Text(text) => text.clone(),
-                            claurst_core::ToolResultContent::Blocks(blocks) => {
-                                blocks
-                                    .iter()
-                                    .filter_map(|b| match b {
-                                        claurst_core::ContentBlock::Text { text } => Some(text.clone()),
-                                        _ => None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join("\n")
-                            }
+                            jet_core::ToolResultContent::Text(text) => text.clone(),
+                            jet_core::ToolResultContent::Blocks(blocks) => blocks
+                                .iter()
+                                .filter_map(|b| match b {
+                                    jet_core::ContentBlock::Text { text } => Some(text.clone()),
+                                    _ => None,
+                                })
+                                .collect::<Vec<_>>()
+                                .join("\n"),
                         };
-                        Some(format!(
-                            "```\n{}{}\n```",
-                            error_marker, result_text
-                        ))
+                        Some(format!("```\n{}{}\n```", error_marker, result_text))
                     }
                     _ => None,
                 })
@@ -80,53 +75,49 @@ pub fn copy_as_markdown(message: &Message) -> String {
 /// Copy message as plaintext (no markdown formatting)
 pub fn copy_as_plaintext(message: &Message) -> String {
     let content = match &message.content {
-        claurst_core::MessageContent::Text(text) => strip_markdown(text),
-        claurst_core::MessageContent::Blocks(blocks) => {
-            blocks
-                .iter()
-                .filter_map(|block| match block {
-                    claurst_core::ContentBlock::Text { text } => Some(strip_markdown(text)),
-                    claurst_core::ContentBlock::Thinking { thinking, .. } => {
-                        Some(format!("[Thinking]\n{}", thinking))
-                    }
-                    claurst_core::ContentBlock::ToolUse { name, input, .. } => {
-                        Some(format!(
-                            "[Tool: {}]\n{}",
-                            name,
-                            serde_json::to_string_pretty(input).unwrap_or_default()
-                        ))
-                    }
-                    claurst_core::ContentBlock::ToolResult { content, is_error, .. } => {
-                        let error_marker = if is_error.unwrap_or(false) {
-                            "[ERROR] "
-                        } else {
-                            ""
-                        };
-                        let result_text = match content {
-                            claurst_core::ToolResultContent::Text(text) => text.clone(),
-                            claurst_core::ToolResultContent::Blocks(blocks) => {
-                                blocks
-                                    .iter()
-                                    .filter_map(|b| match b {
-                                        claurst_core::ContentBlock::Text { text } => Some(text.clone()),
-                                        _ => None,
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join("\n")
-                            }
-                        };
-                        Some(format!("{}{}", error_marker, result_text))
-                    }
-                    _ => None,
-                })
-                .collect::<Vec<_>>()
-                .join("\n\n")
-        }
+        jet_core::MessageContent::Text(text) => strip_markdown(text),
+        jet_core::MessageContent::Blocks(blocks) => blocks
+            .iter()
+            .filter_map(|block| match block {
+                jet_core::ContentBlock::Text { text } => Some(strip_markdown(text)),
+                jet_core::ContentBlock::Thinking { thinking, .. } => {
+                    Some(format!("[Thinking]\n{}", thinking))
+                }
+                jet_core::ContentBlock::ToolUse { name, input, .. } => Some(format!(
+                    "[Tool: {}]\n{}",
+                    name,
+                    serde_json::to_string_pretty(input).unwrap_or_default()
+                )),
+                jet_core::ContentBlock::ToolResult {
+                    content, is_error, ..
+                } => {
+                    let error_marker = if is_error.unwrap_or(false) {
+                        "[ERROR] "
+                    } else {
+                        ""
+                    };
+                    let result_text = match content {
+                        jet_core::ToolResultContent::Text(text) => text.clone(),
+                        jet_core::ToolResultContent::Blocks(blocks) => blocks
+                            .iter()
+                            .filter_map(|b| match b {
+                                jet_core::ContentBlock::Text { text } => Some(text.clone()),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                    };
+                    Some(format!("{}{}", error_marker, result_text))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n\n"),
     };
 
     let role_str = match message.role {
-        claurst_core::Role::User => "User",
-        claurst_core::Role::Assistant => "Assistant",
+        jet_core::Role::User => "User",
+        jet_core::Role::Assistant => "Assistant",
     };
     format!("{}:\n\n{}", role_str, content)
 }
@@ -136,12 +127,12 @@ pub fn copy_code_blocks(message: &Message) -> String {
     let mut code_blocks = Vec::new();
 
     match &message.content {
-        claurst_core::MessageContent::Text(text) => {
+        jet_core::MessageContent::Text(text) => {
             extract_code_blocks_from_text(text, &mut code_blocks);
         }
-        claurst_core::MessageContent::Blocks(blocks) => {
+        jet_core::MessageContent::Blocks(blocks) => {
             for block in blocks {
-                if let claurst_core::ContentBlock::Text { text } = block {
+                if let jet_core::ContentBlock::Text { text } = block {
                     extract_code_blocks_from_text(text, &mut code_blocks);
                 }
             }
@@ -158,15 +149,15 @@ pub fn copy_code_blocks(message: &Message) -> String {
 /// Copy message as JSON
 pub fn copy_as_json(message: &Message) -> String {
     let role_str = match message.role {
-        claurst_core::Role::User => "user",
-        claurst_core::Role::Assistant => "assistant",
+        jet_core::Role::User => "user",
+        jet_core::Role::Assistant => "assistant",
     };
 
     let json_value = json!({
         "role": role_str,
         "content": match &message.content {
-            claurst_core::MessageContent::Text(text) => text.clone(),
-            claurst_core::MessageContent::Blocks(blocks) => {
+            jet_core::MessageContent::Text(text) => text.clone(),
+            jet_core::MessageContent::Blocks(blocks) => {
                 blocks.iter().map(|b| format_block_for_json(b)).collect::<Vec<_>>().join("\n")
             }
         },
@@ -193,10 +184,10 @@ pub fn copy_selection(selected_text: &str) -> String {
 // ============================================================================
 
 /// Format a message with role prefix as markdown
-fn format_markdown_message(role: &claurst_core::Role, content: &str) -> String {
+fn format_markdown_message(role: &jet_core::Role, content: &str) -> String {
     let role_str = match role {
-        claurst_core::Role::User => "**User**",
-        claurst_core::Role::Assistant => "**Assistant**",
+        jet_core::Role::User => "**User**",
+        jet_core::Role::Assistant => "**Assistant**",
     };
     format!("{}\n\n{}", role_str, content)
 }
@@ -326,11 +317,11 @@ fn extract_code_blocks_from_text(text: &str, blocks: &mut Vec<String>) {
 }
 
 /// Format a content block as JSON-compatible string
-fn format_block_for_json(block: &claurst_core::ContentBlock) -> String {
+fn format_block_for_json(block: &jet_core::ContentBlock) -> String {
     match block {
-        claurst_core::ContentBlock::Text { text } => text.clone(),
-        claurst_core::ContentBlock::Image { .. } => "[Image content]".to_string(),
-        claurst_core::ContentBlock::ToolUse { id, name, input } => {
+        jet_core::ContentBlock::Text { text } => text.clone(),
+        jet_core::ContentBlock::Image { .. } => "[Image content]".to_string(),
+        jet_core::ContentBlock::ToolUse { id, name, input } => {
             format!(
                 "[Tool: {} (ID: {})]\n{}",
                 name,
@@ -338,7 +329,7 @@ fn format_block_for_json(block: &claurst_core::ContentBlock) -> String {
                 serde_json::to_string_pretty(input).unwrap_or_default()
             )
         }
-        claurst_core::ContentBlock::ToolResult {
+        jet_core::ContentBlock::ToolResult {
             tool_use_id: _,
             content,
             is_error,
@@ -349,21 +340,19 @@ fn format_block_for_json(block: &claurst_core::ContentBlock) -> String {
                 ""
             };
             let result_text = match content {
-                claurst_core::ToolResultContent::Text(text) => text.clone(),
-                claurst_core::ToolResultContent::Blocks(blocks) => {
-                    blocks
-                        .iter()
-                        .filter_map(|b| match b {
-                            claurst_core::ContentBlock::Text { text } => Some(text.clone()),
-                            _ => None,
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                }
+                jet_core::ToolResultContent::Text(text) => text.clone(),
+                jet_core::ToolResultContent::Blocks(blocks) => blocks
+                    .iter()
+                    .filter_map(|b| match b {
+                        jet_core::ContentBlock::Text { text } => Some(text.clone()),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
             };
             format!("{}{}", error_marker, result_text)
         }
-        claurst_core::ContentBlock::Thinking { thinking, .. } => thinking.clone(),
+        jet_core::ContentBlock::Thinking { thinking, .. } => thinking.clone(),
         _ => "[Unsupported content type]".to_string(),
     }
 }
@@ -394,7 +383,11 @@ pub fn copy_to_clipboard(text: &str) -> bool {
         {
             let escaped = text.replace('\'', "''");
             if let Ok(mut child) = std::process::Command::new("powershell")
-                .args(["-NoProfile", "-Command", &format!("Set-Clipboard '{}'", escaped)])
+                .args([
+                    "-NoProfile",
+                    "-Command",
+                    &format!("Set-Clipboard '{}'", escaped),
+                ])
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::null())
                 .spawn()

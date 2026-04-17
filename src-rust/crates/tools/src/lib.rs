@@ -1,13 +1,13 @@
-// claurst-tools: All tool implementations for Claurst.
+// jet-tools: All tool implementations for jet.
 //
 // Each tool maps to a capability the LLM can invoke: running shell commands,
 // reading/writing/editing files, searching codebases, fetching web pages, etc.
 
 use async_trait::async_trait;
-use claurst_core::config::PermissionMode;
-use claurst_core::cost::CostTracker;
-use claurst_core::permissions::{PermissionDecision, PermissionHandler, PermissionRequest};
-use claurst_core::types::ToolDefinition;
+use jet_core::config::PermissionMode;
+use jet_core::cost::CostTracker;
+use jet_core::permissions::{PermissionDecision, PermissionHandler, PermissionRequest};
+use jet_core::types::ToolDefinition;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -15,79 +15,84 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 // Sub-modules – each contains a full tool implementation.
+pub mod apply_patch;
 pub mod ask_user;
 pub mod bash;
-pub mod pty_bash;
+pub mod batch_edit;
 pub mod brief;
+pub mod bundled_skills;
+pub mod computer_use;
 pub mod config_tool;
 pub mod cron;
 pub mod enter_plan_mode;
 pub mod exit_plan_mode;
-pub mod apply_patch;
-pub mod batch_edit;
 pub mod file_edit;
 pub mod file_read;
 pub mod file_write;
+pub mod formatter;
 pub mod glob_tool;
 pub mod grep_tool;
 pub mod lsp_tool;
+pub mod mcp_auth_tool;
 pub mod mcp_resources;
-pub mod todo_write;
+pub mod monitor_tool;
 pub mod notebook_edit;
 pub mod powershell;
+pub mod pty_bash;
+pub mod remote_trigger;
+pub mod repl_tool;
 pub mod send_message;
-pub mod bundled_skills;
 pub mod skill_tool;
 pub mod sleep;
+pub mod synthetic_output;
 pub mod tasks;
+pub mod team_tool;
+pub mod todo_write;
 pub mod tool_search;
 pub mod web_fetch;
 pub mod web_search;
 pub mod worktree;
-pub mod computer_use;
-pub mod mcp_auth_tool;
-pub mod repl_tool;
-pub mod synthetic_output;
-pub mod team_tool;
-pub mod remote_trigger;
-pub mod formatter;
 
 // Re-exports for convenience.
-pub use formatter::try_format_file;
+pub use apply_patch::ApplyPatchTool;
 pub use ask_user::AskUserQuestionTool;
 pub use bash::BashTool;
-pub use pty_bash::PtyBashTool;
+pub use batch_edit::BatchEditTool;
 pub use brief::BriefTool;
+pub use computer_use::ComputerUseTool;
 pub use config_tool::ConfigTool;
 pub use cron::{CronCreateTool, CronDeleteTool, CronListTool};
 pub use enter_plan_mode::EnterPlanModeTool;
 pub use exit_plan_mode::ExitPlanModeTool;
-pub use apply_patch::ApplyPatchTool;
-pub use batch_edit::BatchEditTool;
 pub use file_edit::FileEditTool;
 pub use file_read::FileReadTool;
 pub use file_write::FileWriteTool;
+pub use formatter::try_format_file;
 pub use glob_tool::GlobTool;
 pub use grep_tool::GrepTool;
 pub use lsp_tool::LspTool;
+pub use mcp_auth_tool::McpAuthTool;
 pub use mcp_resources::{ListMcpResourcesTool, ReadMcpResourceTool};
-pub use todo_write::TodoWriteTool;
+pub use monitor_tool::MonitorTool;
 pub use notebook_edit::NotebookEditTool;
 pub use powershell::PowerShellTool;
-pub use send_message::{SendMessageTool, drain_inbox, peek_inbox};
+pub use pty_bash::PtyBashTool;
+pub use remote_trigger::RemoteTriggerTool;
+pub use repl_tool::ReplTool;
+pub use send_message::{drain_inbox, peek_inbox, SendMessageTool};
 pub use skill_tool::SkillTool;
 pub use sleep::SleepTool;
-pub use tasks::{TaskCreateTool, TaskGetTool, TaskListTool, TaskOutputTool, TaskStopTool, TaskUpdateTool, Task, TaskStatus, TASK_STORE};
+pub use synthetic_output::SyntheticOutputTool;
+pub use tasks::{
+    Task, TaskCreateTool, TaskGetTool, TaskListTool, TaskOutputTool, TaskStatus, TaskStopTool,
+    TaskUpdateTool, TASK_STORE,
+};
+pub use team_tool::{register_agent_runner, AgentRunFn, TeamCreateTool, TeamDeleteTool};
+pub use todo_write::TodoWriteTool;
 pub use tool_search::ToolSearchTool;
 pub use web_fetch::WebFetchTool;
 pub use web_search::WebSearchTool;
 pub use worktree::{EnterWorktreeTool, ExitWorktreeTool};
-pub use computer_use::ComputerUseTool;
-pub use mcp_auth_tool::McpAuthTool;
-pub use repl_tool::ReplTool;
-pub use synthetic_output::SyntheticOutputTool;
-pub use team_tool::{TeamCreateTool, TeamDeleteTool, register_agent_runner, AgentRunFn};
-pub use remote_trigger::RemoteTriggerTool;
 
 // ---------------------------------------------------------------------------
 // Core trait & types
@@ -170,13 +175,15 @@ impl ShellState {
 /// Process-global registry of shell states keyed by session_id.
 /// This lets us persist cwd/env across Bash invocations without changing
 /// the `ToolContext` struct (which is constructed in places we cannot modify).
-static SHELL_STATE_REGISTRY: once_cell::sync::Lazy<dashmap::DashMap<String, Arc<parking_lot::Mutex<ShellState>>>> =
-    once_cell::sync::Lazy::new(dashmap::DashMap::new);
+static SHELL_STATE_REGISTRY: once_cell::sync::Lazy<
+    dashmap::DashMap<String, Arc<parking_lot::Mutex<ShellState>>>,
+> = once_cell::sync::Lazy::new(dashmap::DashMap::new);
 
 /// Process-global registry of `SnapshotManager` instances keyed by session_id.
 /// Used by tools to record pre-write snapshots and by `/undo` to revert them.
-static SNAPSHOT_REGISTRY: once_cell::sync::Lazy<dashmap::DashMap<String, Arc<parking_lot::Mutex<claurst_core::SnapshotManager>>>> =
-    once_cell::sync::Lazy::new(dashmap::DashMap::new);
+static SNAPSHOT_REGISTRY: once_cell::sync::Lazy<
+    dashmap::DashMap<String, Arc<parking_lot::Mutex<jet_core::SnapshotManager>>>,
+> = once_cell::sync::Lazy::new(dashmap::DashMap::new);
 
 /// Return the persistent `ShellState` for the given session, creating one if needed.
 pub fn session_shell_state(session_id: &str) -> Arc<parking_lot::Mutex<ShellState>> {
@@ -192,16 +199,32 @@ pub fn clear_session_shell_state(session_id: &str) {
 }
 
 /// Return the persistent `SnapshotManager` for the given session, creating one if needed.
-pub fn session_snapshot(session_id: &str) -> Arc<parking_lot::Mutex<claurst_core::SnapshotManager>> {
+pub fn session_snapshot(
+    session_id: &str,
+) -> Arc<parking_lot::Mutex<jet_core::SnapshotManager>> {
     SNAPSHOT_REGISTRY
         .entry(session_id.to_string())
-        .or_insert_with(|| Arc::new(parking_lot::Mutex::new(claurst_core::SnapshotManager::new())))
+        .or_insert_with(|| Arc::new(parking_lot::Mutex::new(jet_core::SnapshotManager::new())))
         .clone()
 }
 
 /// Remove the snapshot manager for a session (e.g. when the session ends).
 pub fn clear_session_snapshot(session_id: &str) {
     SNAPSHOT_REGISTRY.remove(session_id);
+}
+
+/// A cloneable handle for injecting notification messages into the next agent turn.
+/// Used by background tasks with `notify_on_complete` to signal completion without polling.
+#[derive(Clone)]
+pub struct CompletionNotifier(Arc<dyn Fn(String) + Send + Sync>);
+
+impl CompletionNotifier {
+    pub fn new(f: impl Fn(String) + Send + Sync + 'static) -> Self {
+        Self(Arc::new(f))
+    }
+    pub fn notify(&self, msg: String) {
+        (self.0)(msg);
+    }
 }
 
 /// Shared context passed to every tool invocation.
@@ -212,14 +235,19 @@ pub struct ToolContext {
     pub permission_handler: Arc<dyn PermissionHandler>,
     pub cost_tracker: Arc<CostTracker>,
     pub session_id: String,
-    pub file_history: Arc<parking_lot::Mutex<claurst_core::file_history::FileHistory>>,
+    pub file_history: Arc<parking_lot::Mutex<jet_core::file_history::FileHistory>>,
     pub current_turn: Arc<AtomicUsize>,
     /// If true, suppress interactive prompts (batch / CI mode).
     pub non_interactive: bool,
     /// Optional MCP manager for ListMcpResources / ReadMcpResource tools.
-    pub mcp_manager: Option<Arc<claurst_mcp::McpManager>>,
+    pub mcp_manager: Option<Arc<jet_mcp::McpManager>>,
     /// Configured event hooks (PreToolUse, PostToolUse, etc.).
-    pub config: claurst_core::config::Config,
+    pub config: jet_core::config::Config,
+    /// Managed agent (manager-executor) configuration, if active.
+    pub managed_agent_config: Option<jet_core::ManagedAgentConfig>,
+    /// Optional notifier for injecting completion messages into the next agent turn.
+    /// Set when the query loop has a command queue wired up.
+    pub completion_notifier: Option<CompletionNotifier>,
 }
 
 impl ToolContext {
@@ -239,7 +267,7 @@ impl ToolContext {
         tool_name: &str,
         description: &str,
         is_read_only: bool,
-    ) -> Result<(), claurst_core::error::ClaudeError> {
+    ) -> Result<(), jet_core::error::ClaudeError> {
         let request = PermissionRequest {
             tool_name: tool_name.to_string(),
             description: description.to_string(),
@@ -250,7 +278,7 @@ impl ToolContext {
         let decision = self.permission_handler.request_permission(&request);
         match decision {
             PermissionDecision::Allow | PermissionDecision::AllowPermanently => Ok(()),
-            _ => Err(claurst_core::error::ClaudeError::PermissionDenied(format!(
+            _ => Err(jet_core::error::ClaudeError::PermissionDenied(format!(
                 "Permission denied for tool '{}'",
                 tool_name
             ))),
@@ -268,7 +296,7 @@ impl ToolContext {
         description: &str,
         details: &str,
         is_read_only: bool,
-    ) -> Result<(), claurst_core::error::ClaudeError> {
+    ) -> Result<(), jet_core::error::ClaudeError> {
         let request = PermissionRequest {
             tool_name: tool_name.to_string(),
             description: description.to_string(),
@@ -279,7 +307,7 @@ impl ToolContext {
         let decision = self.permission_handler.request_permission(&request);
         match decision {
             PermissionDecision::Allow | PermissionDecision::AllowPermanently => Ok(()),
-            _ => Err(claurst_core::error::ClaudeError::PermissionDenied(format!(
+            _ => Err(jet_core::error::ClaudeError::PermissionDenied(format!(
                 "Permission denied for tool '{}': {}",
                 tool_name, details
             ))),
@@ -310,7 +338,7 @@ impl ToolContext {
 /// The trait every tool must implement.
 #[async_trait]
 pub trait Tool: Send + Sync {
-    /// Human-readable name (matches the constant in claurst_core::constants).
+    /// Human-readable name (matches the constant in jet_core::constants).
     fn name(&self) -> &str;
 
     /// One-line description shown to the LLM.
@@ -380,6 +408,7 @@ pub fn all_tools() -> Vec<Box<dyn Tool>> {
         Box::new(SyntheticOutputTool),
         Box::new(McpAuthTool),
         Box::new(RemoteTriggerTool),
+        Box::new(MonitorTool),
         // Computer Use is only available when compiled with the feature flag.
         #[cfg(feature = "computer-use")]
         Box::new(computer_use::ComputerUseTool),
@@ -404,7 +433,10 @@ mod tests {
     #[test]
     fn test_all_tools_non_empty() {
         let tools = all_tools();
-        assert!(!tools.is_empty(), "all_tools() must return at least one tool");
+        assert!(
+            !tools.is_empty(),
+            "all_tools() must return at least one tool"
+        );
     }
 
     #[test]
@@ -470,9 +502,16 @@ mod tests {
     #[test]
     fn test_core_tools_present() {
         let expected = [
-            "Bash", "Read", "Edit", "Write", "Glob", "Grep",
-            "WebFetch", "WebSearch",
-            "TodoWrite", "Skill",
+            "Bash",
+            "Read",
+            "Edit",
+            "Write",
+            "Glob",
+            "Grep",
+            "WebFetch",
+            "WebSearch",
+            "TodoWrite",
+            "Skill",
         ];
         for name in &expected {
             assert!(
@@ -513,25 +552,27 @@ mod tests {
 
     #[test]
     fn test_resolve_path_absolute() {
-        use claurst_core::config::Config;
-        use claurst_core::permissions::AutoPermissionHandler;
+        use jet_core::config::Config;
+        use jet_core::permissions::AutoPermissionHandler;
 
         let handler = Arc::new(AutoPermissionHandler {
-            mode: claurst_core::config::PermissionMode::Default,
+            mode: jet_core::config::PermissionMode::Default,
         });
         let ctx = ToolContext {
             working_dir: PathBuf::from("/workspace"),
-            permission_mode: claurst_core::config::PermissionMode::Default,
+            permission_mode: jet_core::config::PermissionMode::Default,
             permission_handler: handler,
-            cost_tracker: claurst_core::cost::CostTracker::new(),
+            cost_tracker: jet_core::cost::CostTracker::new(),
             session_id: "test".to_string(),
             file_history: Arc::new(parking_lot::Mutex::new(
-                claurst_core::file_history::FileHistory::new(),
+                jet_core::file_history::FileHistory::new(),
             )),
             current_turn: Arc::new(AtomicUsize::new(0)),
             non_interactive: true,
             mcp_manager: None,
             config: Config::default(),
+            managed_agent_config: None,
+            completion_notifier: None,
         };
 
         // Absolute paths pass through unchanged
@@ -541,25 +582,27 @@ mod tests {
 
     #[test]
     fn test_resolve_path_relative() {
-        use claurst_core::config::Config;
-        use claurst_core::permissions::AutoPermissionHandler;
+        use jet_core::config::Config;
+        use jet_core::permissions::AutoPermissionHandler;
 
         let handler = Arc::new(AutoPermissionHandler {
-            mode: claurst_core::config::PermissionMode::Default,
+            mode: jet_core::config::PermissionMode::Default,
         });
         let ctx = ToolContext {
             working_dir: PathBuf::from("/workspace"),
-            permission_mode: claurst_core::config::PermissionMode::Default,
+            permission_mode: jet_core::config::PermissionMode::Default,
             permission_handler: handler,
-            cost_tracker: claurst_core::cost::CostTracker::new(),
+            cost_tracker: jet_core::cost::CostTracker::new(),
             session_id: "test".to_string(),
             file_history: Arc::new(parking_lot::Mutex::new(
-                claurst_core::file_history::FileHistory::new(),
+                jet_core::file_history::FileHistory::new(),
             )),
             current_turn: Arc::new(AtomicUsize::new(0)),
             non_interactive: true,
             mcp_manager: None,
             config: Config::default(),
+            managed_agent_config: None,
+            completion_notifier: None,
         };
 
         // Relative paths get joined with working_dir

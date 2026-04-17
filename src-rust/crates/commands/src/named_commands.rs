@@ -46,16 +46,22 @@ pub trait NamedCommand: Send + Sync {
 pub struct AgentsCommand;
 
 impl NamedCommand for AgentsCommand {
-    fn name(&self) -> &str { "agents" }
-    fn description(&self) -> &str { "Manage and configure sub-agents" }
-    fn usage(&self) -> &str { "claude agents [list|create|edit|delete] [name]" }
+    fn name(&self) -> &str {
+        "agents"
+    }
+    fn description(&self) -> &str {
+        "Manage and configure sub-agents"
+    }
+    fn usage(&self) -> &str {
+        "claude agents [list|create|edit|delete] [name]"
+    }
 
     fn execute_named(&self, args: &[&str], ctx: &CommandContext) -> CommandResult {
         match args.first().copied().unwrap_or("list") {
             "list" => {
-                // Load agent definitions from .claurst/agents/ in working dir
+                // Load agent definitions from .jet/agents/ in working dir
                 // (and home dir), using the same loader as the TUI agents view.
-                let defs = claurst_tui::agents_view::load_agent_definitions(&ctx.working_dir);
+                let defs = jet_tui::agents_view::load_agent_definitions(&ctx.working_dir);
 
                 if defs.is_empty() {
                     return CommandResult::Message(
@@ -70,10 +76,7 @@ impl NamedCommand for AgentsCommand {
                 for def in &defs {
                     let model_str = def.model.as_deref().unwrap_or("default model");
                     if def.description.is_empty() {
-                        out.push_str(&format!(
-                            "  \u{2022} {} ({})\n",
-                            def.name, model_str
-                        ));
+                        out.push_str(&format!("  \u{2022} {} ({})\n", def.name, model_str));
                     } else {
                         out.push_str(&format!(
                             "  \u{2022} {}: {}\n    Model: {}\n",
@@ -87,7 +90,7 @@ impl NamedCommand for AgentsCommand {
             "create" => {
                 let name = args.get(1).copied().unwrap_or("my-agent");
                 CommandResult::Message(format!(
-                    "Create a new agent by adding .claurst/agents/{name}.md\n\
+                    "Create a new agent by adding .jet/agents/{name}.md\n\
                      Template:\n\
                      ---\n\
                      name: {name}\n\
@@ -100,23 +103,25 @@ impl NamedCommand for AgentsCommand {
             "edit" => {
                 let name = match args.get(1).copied() {
                     Some(n) => n,
-                    None => return CommandResult::Error(
-                        "Usage: claude agents edit <name>".to_string(),
-                    ),
+                    None => {
+                        return CommandResult::Error("Usage: claude agents edit <name>".to_string())
+                    }
                 };
                 CommandResult::Message(format!(
-                    "Edit .claurst/agents/{name}.md in your editor to update the agent."
+                    "Edit .jet/agents/{name}.md in your editor to update the agent."
                 ))
             }
             "delete" => {
                 let name = match args.get(1).copied() {
                     Some(n) => n,
-                    None => return CommandResult::Error(
-                        "Usage: claude agents delete <name>".to_string(),
-                    ),
+                    None => {
+                        return CommandResult::Error(
+                            "Usage: claude agents delete <name>".to_string(),
+                        )
+                    }
                 };
                 CommandResult::Message(format!(
-                    "Delete .claurst/agents/{name}.md to remove the agent."
+                    "Delete .jet/agents/{name}.md to remove the agent."
                 ))
             }
             sub => CommandResult::Error(format!("Unknown agents subcommand: '{sub}'")),
@@ -131,9 +136,15 @@ impl NamedCommand for AgentsCommand {
 pub struct AddDirCommand;
 
 impl NamedCommand for AddDirCommand {
-    fn name(&self) -> &str { "add-dir" }
-    fn description(&self) -> &str { "Add a directory to Claurst's allowed workspace paths" }
-    fn usage(&self) -> &str { "claude add-dir <path>" }
+    fn name(&self) -> &str {
+        "add-dir"
+    }
+    fn description(&self) -> &str {
+        "Add a directory to jet's allowed workspace paths"
+    }
+    fn usage(&self) -> &str {
+        "claude add-dir <path>"
+    }
 
     fn execute_named(&self, args: &[&str], _ctx: &CommandContext) -> CommandResult {
         let raw = match args.first() {
@@ -156,7 +167,7 @@ impl NamedCommand for AddDirCommand {
             Err(e) => return CommandResult::Error(format!("Cannot resolve path: {e}")),
         };
 
-        let mut settings = match claurst_core::config::Settings::load_sync() {
+        let mut settings = match jet_core::config::Settings::load_sync() {
             Ok(s) => s,
             Err(e) => {
                 return CommandResult::Error(format!(
@@ -165,7 +176,12 @@ impl NamedCommand for AddDirCommand {
             }
         };
 
-        if !settings.config.workspace_paths.iter().any(|p| p == &abs_path) {
+        if !settings
+            .config
+            .workspace_paths
+            .iter()
+            .any(|p| p == &abs_path)
+        {
             settings.config.workspace_paths.push(abs_path.clone());
             if let Err(e) = settings.save_sync() {
                 return CommandResult::Error(format!(
@@ -190,9 +206,15 @@ impl NamedCommand for AddDirCommand {
 pub struct BranchCommand;
 
 impl NamedCommand for BranchCommand {
-    fn name(&self) -> &str { "branch" }
-    fn description(&self) -> &str { "Create a branch of the current conversation at this point" }
-    fn usage(&self) -> &str { "claude branch [create|list|switch] [name|id]" }
+    fn name(&self) -> &str {
+        "branch"
+    }
+    fn description(&self) -> &str {
+        "Create a branch of the current conversation at this point"
+    }
+    fn usage(&self) -> &str {
+        "claude branch [create|list|switch] [name|id]"
+    }
 
     fn execute_named(&self, args: &[&str], ctx: &CommandContext) -> CommandResult {
         match args.first().copied().unwrap_or("") {
@@ -216,7 +238,7 @@ impl NamedCommand for BranchCommand {
 
                 let result = tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current().block_on(async move {
-                        claurst_core::history::branch_session(
+                        jet_core::history::branch_session(
                             &session_id,
                             msg_count,
                             title_opt.as_deref(),
@@ -245,7 +267,7 @@ impl NamedCommand for BranchCommand {
 
                 let sessions = tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current()
-                        .block_on(claurst_core::history::list_sessions())
+                        .block_on(jet_core::history::list_sessions())
                 });
 
                 let branches: Vec<_> = sessions
@@ -289,7 +311,7 @@ impl NamedCommand for BranchCommand {
 
                 let result = tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current()
-                        .block_on(claurst_core::history::load_session(&id))
+                        .block_on(jet_core::history::load_session(&id))
                 });
 
                 match result {
@@ -309,9 +331,15 @@ impl NamedCommand for BranchCommand {
 pub struct TagCommand;
 
 impl NamedCommand for TagCommand {
-    fn name(&self) -> &str { "tag" }
-    fn description(&self) -> &str { "Toggle a searchable tag on the current session" }
-    fn usage(&self) -> &str { "claude tag [list|add|remove|toggle] [tag]" }
+    fn name(&self) -> &str {
+        "tag"
+    }
+    fn description(&self) -> &str {
+        "Toggle a searchable tag on the current session"
+    }
+    fn usage(&self) -> &str {
+        "claude tag [list|add|remove|toggle] [tag]"
+    }
 
     fn execute_named(&self, args: &[&str], ctx: &CommandContext) -> CommandResult {
         let session_id = ctx.session_id.clone();
@@ -320,14 +348,12 @@ impl NamedCommand for TagCommand {
             "list" => {
                 let result = tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current()
-                        .block_on(claurst_core::history::load_session(&session_id))
+                        .block_on(jet_core::history::load_session(&session_id))
                 });
                 match result {
                     Ok(session) => {
                         if session.tags.is_empty() {
-                            CommandResult::Message(
-                                "No tags set for this session.".to_string(),
-                            )
+                            CommandResult::Message("No tags set for this session.".to_string())
                         } else {
                             CommandResult::Message(format!(
                                 "Tags for this session:\n{}",
@@ -348,16 +374,12 @@ impl NamedCommand for TagCommand {
             "add" => {
                 let tag = match args.get(1).copied() {
                     Some(t) if !t.is_empty() => t.to_string(),
-                    _ => {
-                        return CommandResult::Error(
-                            "Usage: claude tag add <tag>".to_string(),
-                        )
-                    }
+                    _ => return CommandResult::Error("Usage: claude tag add <tag>".to_string()),
                 };
 
                 let result = tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current()
-                        .block_on(claurst_core::history::tag_session(&session_id, &tag))
+                        .block_on(jet_core::history::tag_session(&session_id, &tag))
                 });
 
                 match result {
@@ -370,16 +392,12 @@ impl NamedCommand for TagCommand {
             "remove" => {
                 let tag = match args.get(1).copied() {
                     Some(t) if !t.is_empty() => t.to_string(),
-                    _ => {
-                        return CommandResult::Error(
-                            "Usage: claude tag remove <tag>".to_string(),
-                        )
-                    }
+                    _ => return CommandResult::Error("Usage: claude tag remove <tag>".to_string()),
                 };
 
                 let result = tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current()
-                        .block_on(claurst_core::history::untag_session(&session_id, &tag))
+                        .block_on(jet_core::history::untag_session(&session_id, &tag))
                 });
 
                 match result {
@@ -390,17 +408,13 @@ impl NamedCommand for TagCommand {
             "toggle" => {
                 let tag = match args.get(1).copied() {
                     Some(t) if !t.is_empty() => t.to_string(),
-                    _ => {
-                        return CommandResult::Error(
-                            "Usage: claude tag toggle <tag>".to_string(),
-                        )
-                    }
+                    _ => return CommandResult::Error("Usage: claude tag toggle <tag>".to_string()),
                 };
 
                 // Load session to check existing tags
                 let load_result = tokio::task::block_in_place(|| {
                     tokio::runtime::Handle::current()
-                        .block_on(claurst_core::history::load_session(&session_id))
+                        .block_on(jet_core::history::load_session(&session_id))
                 });
 
                 match load_result {
@@ -409,18 +423,22 @@ impl NamedCommand for TagCommand {
                         if session.tags.iter().any(|t| t == &tag) {
                             // Tag exists — remove it
                             let remove_result = tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current()
-                                    .block_on(claurst_core::history::untag_session(&session_id, &tag_clone))
+                                tokio::runtime::Handle::current().block_on(
+                                    jet_core::history::untag_session(&session_id, &tag_clone),
+                                )
                             });
                             match remove_result {
                                 Ok(()) => CommandResult::Message(format!("Removed tag: #{tag}")),
-                                Err(e) => CommandResult::Error(format!("Could not remove tag: {e}")),
+                                Err(e) => {
+                                    CommandResult::Error(format!("Could not remove tag: {e}"))
+                                }
                             }
                         } else {
                             // Tag absent — add it
                             let add_result = tokio::task::block_in_place(|| {
-                                tokio::runtime::Handle::current()
-                                    .block_on(claurst_core::history::tag_session(&session_id, &tag_clone))
+                                tokio::runtime::Handle::current().block_on(
+                                    jet_core::history::tag_session(&session_id, &tag_clone),
+                                )
                             });
                             match add_result {
                                 Ok(()) => CommandResult::Message(format!("Added tag: #{tag}")),
@@ -447,16 +465,22 @@ impl NamedCommand for TagCommand {
 pub struct PassesCommand;
 
 impl NamedCommand for PassesCommand {
-    fn name(&self) -> &str { "passes" }
-    fn description(&self) -> &str { "Share a free week of Claurst with friends" }
-    fn usage(&self) -> &str { "claude passes" }
+    fn name(&self) -> &str {
+        "passes"
+    }
+    fn description(&self) -> &str {
+        "Share a free week of jet with friends"
+    }
+    fn usage(&self) -> &str {
+        "claude passes"
+    }
 
     fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {
         CommandResult::Message(
-            "Claurst Passes \u{2014} Share Claurst with friends\n\n\
-             Share a free week of Claurst with a friend\n\
+            "jet Passes \u{2014} Share jet with friends\n\n\
+             Share a free week of jet with a friend\n\
              Visit https://claude.ai/passes to get your referral link\n\
-             Each referral gives your friend 1 week of Claurst Pro"
+             Each referral gives your friend 1 week of jet Pro"
                 .to_string(),
         )
     }
@@ -492,18 +516,24 @@ fn is_pid_alive(pid: u64) -> bool {
 pub struct IdeCommand;
 
 impl NamedCommand for IdeCommand {
-    fn name(&self) -> &str { "ide" }
-    fn description(&self) -> &str { "Manage IDE integrations and show status" }
-    fn usage(&self) -> &str { "claude ide [status|connect|disconnect|open]" }
+    fn name(&self) -> &str {
+        "ide"
+    }
+    fn description(&self) -> &str {
+        "Manage IDE integrations and show status"
+    }
+    fn usage(&self) -> &str {
+        "claude ide [status|connect|disconnect|open]"
+    }
 
     fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {
         // ---- Environment-based IDE detection --------------------------------
-        let env_detection = claurst_core::detect_ide();
+        let env_detection = jet_core::detect_ide();
         let env_section = match &env_detection {
             Some(kind) => {
                 let mut lines = vec![format!("Detected IDE: {}", kind.display_name())];
                 if let Some(cmd) = kind.extension_install_command() {
-                    lines.push(format!("To install the Claurst extension: {}", cmd));
+                    lines.push(format!("To install the jet extension: {}", cmd));
                 }
                 lines.join("\n")
             }
@@ -512,7 +542,7 @@ impl NamedCommand for IdeCommand {
 
         // ---- Lockfile-based connection status --------------------------------
         let lockfile_dir = dirs::home_dir()
-            .map(|h| h.join(".claurst").join("ide"))
+            .map(|h| h.join(".jet").join("ide"))
             .unwrap_or_default();
 
         let mut ides = Vec::new();
@@ -525,16 +555,24 @@ impl NamedCommand for IdeCommand {
                             let pid = info["pid"].as_u64().unwrap_or(0);
                             let alive = is_pid_alive(pid);
                             if alive {
-                                let ide_name = info["ideName"].as_str().unwrap_or("Unknown IDE").to_string();
+                                let ide_name = info["ideName"]
+                                    .as_str()
+                                    .unwrap_or("Unknown IDE")
+                                    .to_string();
                                 let port = info["port"].as_u64().unwrap_or(0);
                                 let workspace_folders = info["workspaceFolders"]
                                     .as_array()
-                                    .map(|a| a.iter()
-                                        .filter_map(|v| v.as_str())
-                                        .collect::<Vec<_>>()
-                                        .join(", "))
+                                    .map(|a| {
+                                        a.iter()
+                                            .filter_map(|v| v.as_str())
+                                            .collect::<Vec<_>>()
+                                            .join(", ")
+                                    })
                                     .unwrap_or_default();
-                                ides.push(format!("  {} (PID {}, port {}) \u{2014} {}", ide_name, pid, port, workspace_folders));
+                                ides.push(format!(
+                                    "  {} (PID {}, port {}) \u{2014} {}",
+                                    ide_name, pid, port, workspace_folders
+                                ));
                             } else {
                                 // Clean up dead lockfile
                                 let _ = std::fs::remove_file(&path);
@@ -548,7 +586,10 @@ impl NamedCommand for IdeCommand {
         let connection_section = if ides.is_empty() {
             "No active IDE extension connections found.".to_string()
         } else {
-            format!("Connected IDEs:\n{}\n\nUse 'claude ide open <file>' to open a file in the IDE.", ides.join("\n"))
+            format!(
+                "Connected IDEs:\n{}\n\nUse 'claude ide open <file>' to open a file in the IDE.",
+                ides.join("\n")
+            )
         };
 
         CommandResult::Message(format!("{env_section}\n\n{connection_section}"))
@@ -562,9 +603,15 @@ impl NamedCommand for IdeCommand {
 pub struct PrCommentsCommand;
 
 impl NamedCommand for PrCommentsCommand {
-    fn name(&self) -> &str { "pr-comments" }
-    fn description(&self) -> &str { "Get review comments from the current GitHub pull request" }
-    fn usage(&self) -> &str { "claude pr-comments" }
+    fn name(&self) -> &str {
+        "pr-comments"
+    }
+    fn description(&self) -> &str {
+        "Get review comments from the current GitHub pull request"
+    }
+    fn usage(&self) -> &str {
+        "claude pr-comments"
+    }
 
     fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {
         // Step 1: Get current git remote + PR info via gh CLI
@@ -573,19 +620,19 @@ impl NamedCommand for PrCommentsCommand {
             .output();
 
         let pr_info = match pr_json {
-            Err(_) => return CommandResult::Error(
-                "GitHub CLI (gh) not found. Install from https://cli.github.com".to_string()
-            ),
+            Err(_) => {
+                return CommandResult::Error(
+                    "GitHub CLI (gh) not found. Install from https://cli.github.com".to_string(),
+                )
+            }
             Ok(out) if !out.status.success() => {
                 let stderr = String::from_utf8_lossy(&out.stderr);
                 return CommandResult::Error(format!("No open PR found: {}", stderr.trim()));
             }
-            Ok(out) => {
-                match serde_json::from_slice::<serde_json::Value>(&out.stdout) {
-                    Ok(v) => v,
-                    Err(_) => return CommandResult::Error("Failed to parse gh output".to_string()),
-                }
-            }
+            Ok(out) => match serde_json::from_slice::<serde_json::Value>(&out.stdout) {
+                Ok(v) => v,
+                Err(_) => return CommandResult::Error("Failed to parse gh output".to_string()),
+            },
         };
 
         let pr_number = pr_info["number"].as_u64().unwrap_or(0);
@@ -597,7 +644,10 @@ impl NamedCommand for PrCommentsCommand {
 
         // Step 2: Fetch review comments via gh API
         let comments_out = std::process::Command::new("gh")
-            .args(["api", &format!("repos/{{owner}}/{{repo}}/pulls/{}/comments", pr_number)])
+            .args([
+                "api",
+                &format!("repos/{{owner}}/{{repo}}/pulls/{}/comments", pr_number),
+            ])
             .output();
 
         let mut output = format!("PR #{} \u{2014} {}\n\n", pr_number, pr_url);
@@ -613,7 +663,10 @@ impl NamedCommand for PrCommentsCommand {
                             let user = c["user"]["login"].as_str().unwrap_or("unknown");
                             let body = c["body"].as_str().unwrap_or("").trim();
                             let body_short: String = body.chars().take(200).collect();
-                            output.push_str(&format!("  {}:{} by @{}:\n    {}\n\n", path, line, user, body_short));
+                            output.push_str(&format!(
+                                "  {}:{} by @{}:\n    {}\n\n",
+                                path, line, user, body_short
+                            ));
                         }
                     }
                     Ok(_) => output.push_str("No review comments found.\n"),
@@ -634,16 +687,22 @@ impl NamedCommand for PrCommentsCommand {
 pub struct DesktopCommand;
 
 impl NamedCommand for DesktopCommand {
-    fn name(&self) -> &str { "desktop" }
-    fn description(&self) -> &str { "Download and set up Claurst Desktop app" }
-    fn usage(&self) -> &str { "claude desktop" }
+    fn name(&self) -> &str {
+        "desktop"
+    }
+    fn description(&self) -> &str {
+        "Download and set up jet Desktop app"
+    }
+    fn usage(&self) -> &str {
+        "claude desktop"
+    }
 
     fn execute_named(&self, _args: &[&str], ctx: &CommandContext) -> CommandResult {
         let os = std::env::consts::OS;
         let arch = std::env::consts::ARCH;
         let download_url = "https://claude.ai/download";
 
-        // Detect if Claurst Desktop is likely installed (platform-specific heuristic).
+        // Detect if jet Desktop is likely installed (platform-specific heuristic).
         let desktop_likely_installed = match os {
             "macos" => {
                 std::path::Path::new("/Applications/Claude.app").exists()
@@ -655,7 +714,11 @@ impl NamedCommand for DesktopCommand {
             }
             "windows" => {
                 std::env::var("LOCALAPPDATA")
-                    .map(|p| std::path::Path::new(&p).join("Programs/Claude/Claude.exe").exists())
+                    .map(|p| {
+                        std::path::Path::new(&p)
+                            .join("Programs/Claude/Claude.exe")
+                            .exists()
+                    })
                     .unwrap_or(false)
                     || std::path::Path::new("C:\\Program Files\\Claude\\Claude.exe").exists()
             }
@@ -669,11 +732,11 @@ impl NamedCommand for DesktopCommand {
             let deep_link = format!("claude://session/{}", session_id);
 
             let mut msg = String::new();
-            msg.push_str("\u{2713} Already connected to Claurst Desktop\n\n");
-            msg.push_str("Your Claurst session is synced with Claurst Desktop.\n\n");
+            msg.push_str("\u{2713} Already connected to jet Desktop\n\n");
+            msg.push_str("Your jet session is synced with jet Desktop.\n\n");
             msg.push_str(&format!("Open this session in Desktop: {deep_link}\n\n"));
             if desktop_likely_installed {
-                msg.push_str("Claurst Desktop is installed on this machine.\n");
+                msg.push_str("jet Desktop is installed on this machine.\n");
                 msg.push_str(&format!("Manage your installation: {download_url}"));
             } else {
                 msg.push_str(&format!("Download / manage Desktop: {download_url}"));
@@ -684,45 +747,45 @@ impl NamedCommand for DesktopCommand {
         let msg = if os == "macos" {
             if desktop_likely_installed {
                 format!(
-                    "Open Claurst Desktop \u{2014} macOS\n\n\
-                     Claurst Desktop appears to be installed.\n\
+                    "Open jet Desktop \u{2014} macOS\n\n\
+                     jet Desktop appears to be installed.\n\
                      Launch it from /Applications/Claude.app and sign in with your Anthropic account.\n\n\
                      Download / update: {download_url}"
                 )
             } else {
                 format!(
-                    "Download Claurst Desktop \u{2014} macOS\n\n\
+                    "Download jet Desktop \u{2014} macOS\n\n\
                      Download: {download_url}\n\n\
                      Setup instructions:\n\
-                     1. Download and install Claurst Desktop for macOS\n\
-                     2. Open Claurst Desktop and sign in with the same Anthropic account\n\
-                     3. Claurst will detect the Desktop bridge automatically"
+                     1. Download and install jet Desktop for macOS\n\
+                     2. Open jet Desktop and sign in with the same Anthropic account\n\
+                     3. jet will detect the Desktop bridge automatically"
                 )
             }
         } else if os == "windows" {
             let arch_note = if arch == "x86_64" { " (x64)" } else { "" };
             if desktop_likely_installed {
                 format!(
-                    "Open Claurst Desktop \u{2014} Windows{arch_note}\n\n\
-                     Claurst Desktop appears to be installed.\n\
+                    "Open jet Desktop \u{2014} Windows{arch_note}\n\n\
+                     jet Desktop appears to be installed.\n\
                      Launch it from your Start menu and sign in with your Anthropic account.\n\n\
                      Download / update: {download_url}"
                 )
             } else {
                 format!(
-                    "Download Claurst Desktop for Windows{arch_note}\n\n\
+                    "Download jet Desktop for Windows{arch_note}\n\n\
                      Download: {download_url}\n\n\
                      Setup instructions:\n\
-                     1. Download and run the Claurst Desktop installer\n\
-                     2. Open Claurst Desktop and sign in with the same Anthropic account\n\
-                     3. Claurst will detect the Desktop bridge automatically"
+                     1. Download and run the jet Desktop installer\n\
+                     2. Open jet Desktop and sign in with the same Anthropic account\n\
+                     3. jet will detect the Desktop bridge automatically"
                 )
             }
         } else {
             // Linux and other platforms
             format!(
-                "Claurst Desktop is not yet available for {os}\n\n\
-                 On Linux, you can use Claurst via the CLI or visit https://claude.ai in your browser.\n\
+                "jet Desktop is not yet available for {os}\n\n\
+                 On Linux, you can use jet via the CLI or visit https://claude.ai in your browser.\n\
                  Check {download_url} for the latest platform availability."
             )
         };
@@ -772,12 +835,12 @@ pub fn render_qr(url: &str) -> Vec<String> {
     while r < (width + qz) as isize {
         let mut line = String::new();
         for c in -(qz as isize)..(width + qz) as isize {
-            let top  = dark(r,     c);
-            let bot  = dark(r + 1, c);
+            let top = dark(r, c);
+            let bot = dark(r + 1, c);
             line.push(match (top, bot) {
-                (true,  true)  => '█',
-                (true,  false) => '▀',
-                (false, true)  => '▄',
+                (true, true) => '█',
+                (true, false) => '▀',
+                (false, true) => '▄',
                 (false, false) => ' ',
             });
         }
@@ -796,14 +859,20 @@ pub fn render_qr(url: &str) -> Vec<String> {
 pub struct MobileCommand;
 
 impl NamedCommand for MobileCommand {
-    fn name(&self) -> &str { "mobile" }
-    fn description(&self) -> &str { "Download the Claurst mobile app" }
-    fn usage(&self) -> &str { "claude mobile [ios|android]" }
+    fn name(&self) -> &str {
+        "mobile"
+    }
+    fn description(&self) -> &str {
+        "Download the jet mobile app"
+    }
+    fn usage(&self) -> &str {
+        "claude mobile [ios|android]"
+    }
 
     fn execute_named(&self, args: &[&str], ctx: &CommandContext) -> CommandResult {
-        let ios_url     = "https://apps.apple.com/app/claude-by-anthropic/id6473753684";
+        let ios_url = "https://apps.apple.com/app/claude-by-anthropic/id6473753684";
         let android_url = "https://play.google.com/store/apps/details?id=com.anthropic.claude";
-        let mobile_url  = "https://claude.ai/mobile";
+        let mobile_url = "https://claude.ai/mobile";
 
         let has_session = ctx.remote_session_url.is_some();
 
@@ -817,25 +886,30 @@ impl NamedCommand for MobileCommand {
 
         // Choose which platform / URL to show the QR for (default: claude.ai/mobile).
         let (platform_label, qr_url): (&str, &str) = match args.first().copied().unwrap_or("") {
-            "ios" | "1"         => ("[1] iOS  (selected)", ios_url),
-            "android" | "2"     => ("[2] Android  (selected)", android_url),
-            "session" | "3"     => {
+            "ios" | "1" => ("[1] iOS  (selected)", ios_url),
+            "android" | "2" => ("[2] Android  (selected)", android_url),
+            "session" | "3" => {
                 if has_session {
                     ("[3] Session  (selected)", session_qr_url.as_str())
                 } else {
-                    ("session link unavailable \u{2014} no active remote session", mobile_url)
+                    (
+                        "session link unavailable \u{2014} no active remote session",
+                        mobile_url,
+                    )
                 }
             }
-            _                   => ("both platforms", mobile_url),
+            _ => ("both platforms", mobile_url),
         };
 
         let qr_lines = render_qr(qr_url);
 
         let mut out = String::new();
-        out.push_str("Scan to download Claurst mobile app\n");
+        out.push_str("Scan to download jet mobile app\n");
         out.push_str(&format!("Platform: {platform_label}\n\n"));
         if has_session {
-            out.push_str("  [1] iOS    [2] Android    [3] Session (QR links to active session)\n\n");
+            out.push_str(
+                "  [1] iOS    [2] Android    [3] Session (QR links to active session)\n\n",
+            );
         } else {
             out.push_str("  [1] iOS    [2] Android\n\n");
         }
@@ -867,20 +941,37 @@ impl NamedCommand for MobileCommand {
 pub struct InstallGithubAppCommand;
 
 impl NamedCommand for InstallGithubAppCommand {
-    fn name(&self) -> &str { "install-github-app" }
-    fn description(&self) -> &str { "Set up Claurst GitHub Actions for a repository" }
-    fn usage(&self) -> &str { "claude install-github-app" }
+    fn name(&self) -> &str {
+        "install-github-app"
+    }
+    fn description(&self) -> &str {
+        "Set up jet GitHub Actions for a repository"
+    }
+    fn usage(&self) -> &str {
+        "claude install-github-app"
+    }
 
-    fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {
-        CommandResult::Message(
-            "To install the Claurst GitHub App:\n\
+    fn execute_named(&self, _args: &[&str], ctx: &CommandContext) -> CommandResult {
+        let provider_id = ctx.config.selected_provider_id();
+        let provider_secret_step = jet_core::config::primary_api_key_env_var_for_provider(provider_id)
+            .map(|provider_secret| {
+                format!(
+                    "3. Add your provider credential to repository secrets (for example {provider_secret})"
+                )
+            })
+            .unwrap_or_else(|| {
+                format!(
+                    "3. Configure any required provider credentials or connectivity for {provider_id} in your workflow environment"
+                )
+            });
+
+        CommandResult::Message(format!(
+            "To install the jet GitHub App:\n\
              1. Visit https://github.com/apps/claude-code-app and click Install\n\
              2. Select the repositories to enable\n\
-             3. Add your ANTHROPIC_API_KEY to repository secrets\n\n\
-             The app enables Claurst in GitHub Actions workflows.\n\
-             Docs: https://docs.anthropic.com/claude-code/github-actions"
-                .to_string(),
-        )
+             {provider_secret_step}\n\n\
+             The app enables jet in GitHub Actions workflows for the configured provider."
+        ))
     }
 }
 
@@ -891,26 +982,60 @@ impl NamedCommand for InstallGithubAppCommand {
 pub struct RemoteSetupCommand;
 
 impl NamedCommand for RemoteSetupCommand {
-    fn name(&self) -> &str { "remote-setup" }
-    fn description(&self) -> &str { "Check and configure a remote Claurst environment" }
-    fn usage(&self) -> &str { "claude remote-setup" }
+    fn name(&self) -> &str {
+        "remote-setup"
+    }
+    fn description(&self) -> &str {
+        "Check and configure a remote jet environment"
+    }
+    fn usage(&self) -> &str {
+        "claude remote-setup"
+    }
 
-    fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {
+    fn execute_named(&self, _args: &[&str], ctx: &CommandContext) -> CommandResult {
+        use std::net::ToSocketAddrs;
+
         let mut steps = Vec::new();
+        let provider_id = ctx.config.selected_provider_id();
+        let provider_name = provider_id.replace('-', " ");
+        let credential_hint = jet_core::config::api_key_env_vars_for_provider(provider_id);
+        let credentials_required = !matches!(
+            provider_id,
+            "ollama" | "lmstudio" | "lm-studio" | "llamacpp" | "llama-cpp" | "llama-server"
+        );
+        let credential_help = if credential_hint.is_empty() {
+            format!("configure an API key for {provider_name} in settings")
+        } else {
+            format!(
+                "set {} or configure apiKey in settings",
+                credential_hint.join(" / ")
+            )
+        };
 
-        // Step 1: Check ANTHROPIC_API_KEY
-        let has_api_key = std::env::var("ANTHROPIC_API_KEY").is_ok();
+        // Step 1: Check provider credentials
+        let has_api_key = !credentials_required || ctx.config.resolve_api_key().is_some();
         steps.push(format!(
-            "{} ANTHROPIC_API_KEY {}",
+            "{} {} credentials {}",
             if has_api_key { "\u{2713}" } else { "\u{2717}" },
-            if has_api_key { "is set".to_string() } else { "is NOT set \u{2014} run: export ANTHROPIC_API_KEY=sk-...".to_string() }
+            provider_name,
+            if !credentials_required {
+                "are not required for this provider".to_string()
+            } else if has_api_key {
+                "are configured".to_string()
+            } else {
+                format!("are NOT configured — {credential_help}")
+            }
         ));
 
         // Step 2: Check SSH agent forwarding (check SSH_AUTH_SOCK)
         let has_ssh_agent = std::env::var("SSH_AUTH_SOCK").is_ok();
         steps.push(format!(
             "{} SSH agent forwarding {}",
-            if has_ssh_agent { "\u{2713}" } else { "\u{25cb}" },
+            if has_ssh_agent {
+                "\u{2713}"
+            } else {
+                "\u{25cb}"
+            },
             if has_ssh_agent {
                 "detected".to_string()
             } else {
@@ -919,10 +1044,10 @@ impl NamedCommand for RemoteSetupCommand {
         ));
 
         // Step 3: Check claude config dir exists
-        let config_dir = dirs::home_dir().map(|h| h.join(".claurst")).unwrap_or_default();
+        let config_dir = jet_core::config::Settings::config_dir();
         let has_config = config_dir.exists();
         steps.push(format!(
-            "{} Claurst config dir {}",
+            "{} jet config dir {}",
             if has_config { "\u{2713}" } else { "\u{2717}" },
             if has_config {
                 format!("exists at {}", config_dir.display())
@@ -931,18 +1056,30 @@ impl NamedCommand for RemoteSetupCommand {
             }
         ));
 
-        // Step 4: Check internet connectivity
-        let net_ok = std::net::TcpStream::connect_timeout(
-            &"api.anthropic.com:443".parse().unwrap_or_else(|_| "8.8.8.8:53".parse().unwrap()),
-            std::time::Duration::from_secs(3),
-        ).is_ok();
+        // Step 4: Check provider endpoint reachability
+        let api_base = ctx.config.resolve_api_base();
+        let (net_ok, net_target) = if let Ok(parsed) = reqwest::Url::parse(&api_base) {
+            if let Some(host) = parsed.host_str() {
+                let port = parsed.port_or_known_default().unwrap_or(443);
+                let target = format!("{host}:{port}");
+                let resolved = (host, port)
+                    .to_socket_addrs()
+                    .map(|mut addrs| addrs.next().is_some())
+                    .unwrap_or(false);
+                (resolved, target)
+            } else {
+                (false, api_base.clone())
+            }
+        } else {
+            (false, api_base.clone())
+        };
         steps.push(format!(
             "{} Network connectivity {}",
             if net_ok { "\u{2713}" } else { "\u{2717}" },
             if net_ok {
-                "to api.anthropic.com".to_string()
+                format!("to {net_target}")
             } else {
-                "FAILED \u{2014} check firewall/proxy".to_string()
+                format!("FAILED \u{2014} check access to {net_target}")
             }
         ));
 
@@ -954,7 +1091,7 @@ impl NamedCommand for RemoteSetupCommand {
              {}",
             steps.join("\n"),
             if all_ok {
-                "\u{2713} All checks passed. Claurst is ready for remote use.\nStart a session: claude --bridge"
+                "\u{2713} All checks passed. jet is ready for remote use.\nStart a session: claude --bridge"
             } else {
                 "\u{2717} Some checks failed. Fix the issues above and run 'claude remote-setup' again."
             }
@@ -969,17 +1106,23 @@ impl NamedCommand for RemoteSetupCommand {
 pub struct StickersCommand;
 
 impl NamedCommand for StickersCommand {
-    fn name(&self) -> &str { "stickers" }
-    fn description(&self) -> &str { "Open the Claurst sticker page in your browser" }
-    fn usage(&self) -> &str { "claude stickers" }
+    fn name(&self) -> &str {
+        "stickers"
+    }
+    fn description(&self) -> &str {
+        "Open the jet sticker page in your browser"
+    }
+    fn usage(&self) -> &str {
+        "claude stickers"
+    }
 
     fn execute_named(&self, _args: &[&str], _ctx: &CommandContext) -> CommandResult {
         let url = "https://www.stickermule.com/claudecode";
         match open::that(url) {
             Ok(_) => CommandResult::Message(format!("Opening stickers page: {url}")),
-            Err(e) => CommandResult::Message(format!(
-                "Visit: {url}\n(Could not open browser: {e})"
-            )),
+            Err(e) => {
+                CommandResult::Message(format!("Visit: {url}\n(Could not open browser: {e})"))
+            }
         }
     }
 }
@@ -991,13 +1134,20 @@ impl NamedCommand for StickersCommand {
 pub struct UltraplanCommand;
 
 impl NamedCommand for UltraplanCommand {
-    fn name(&self) -> &str { "ultraplan" }
-    fn description(&self) -> &str { "Launch Ultraplan agentic code planner with extended thinking" }
-    fn usage(&self) -> &str { "claude ultraplan [--effort=medium|high|maximum]" }
+    fn name(&self) -> &str {
+        "ultraplan"
+    }
+    fn description(&self) -> &str {
+        "Launch Ultraplan agentic code planner with extended thinking"
+    }
+    fn usage(&self) -> &str {
+        "claude ultraplan [--effort=medium|high|maximum]"
+    }
 
     fn execute_named(&self, args: &[&str], _ctx: &CommandContext) -> CommandResult {
         // Parse effort level from args
-        let effort = args.iter()
+        let effort = args
+            .iter()
             .find(|arg| arg.starts_with("--effort="))
             .and_then(|arg| arg.strip_prefix("--effort="))
             .unwrap_or("medium");
@@ -1061,11 +1211,11 @@ pub fn find_named_command(name: &str) -> Option<Box<dyn NamedCommand>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use claurst_core::cost::CostTracker;
+    use jet_core::cost::CostTracker;
 
     fn make_ctx() -> CommandContext {
         CommandContext {
-            config: claurst_core::config::Config::default(),
+            config: jet_core::config::Config::default(),
             cost_tracker: CostTracker::new(),
             messages: vec![],
             working_dir: std::path::PathBuf::from("."),

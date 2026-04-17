@@ -1,8 +1,8 @@
 /// Plugin discovery and loading — ported from `pluginLoader.ts` / `pluginDirectories.ts`.
 ///
 /// Scan order (matches TS precedence):
-/// 1. `~/.claurst/plugins/<name>/`  — user-global plugins
-/// 2. `<project>/.claurst/plugins/<name>/`  — project-local plugins
+/// 1. `~/.jet/plugins/<name>/`  — user-global plugins
+/// 2. `<project>/.jet/plugins/<name>/`  — project-local plugins
 /// 3. Extra paths from `settings.plugin_paths` (if the field exists)
 ///
 /// Each plugin directory must contain a `plugin.json` or `plugin.toml`
@@ -16,14 +16,14 @@ use std::path::{Path, PathBuf};
 // Public helpers
 // ---------------------------------------------------------------------------
 
-/// Return the default user-level plugins directory: `~/.claurst/plugins`.
+/// Return the default user-level plugins directory: `~/.jet/plugins`.
 pub fn default_user_plugins_dir() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".claurst").join("plugins"))
+    dirs::home_dir().map(|h| h.join(".jet").join("plugins"))
 }
 
-/// Return the project-level plugins directory: `<project>/.claurst/plugins`.
+/// Return the project-level plugins directory: `<project>/.jet/plugins`.
 pub fn project_plugins_dir(project_dir: &Path) -> PathBuf {
-    project_dir.join(".claurst").join("plugins")
+    project_dir.join(".jet").join("plugins")
 }
 
 // ---------------------------------------------------------------------------
@@ -113,19 +113,35 @@ pub fn try_load_from_path(
     // Resolve sub-paths.
     let commands_path = {
         let p = plugin_dir.join("commands");
-        if p.is_dir() { Some(p) } else { None }
+        if p.is_dir() {
+            Some(p)
+        } else {
+            None
+        }
     };
     let agents_path = {
         let p = plugin_dir.join("agents");
-        if p.is_dir() { Some(p) } else { None }
+        if p.is_dir() {
+            Some(p)
+        } else {
+            None
+        }
     };
     let skills_path = {
         let p = plugin_dir.join("skills");
-        if p.is_dir() { Some(p) } else { None }
+        if p.is_dir() {
+            Some(p)
+        } else {
+            None
+        }
     };
     let output_styles_path = {
         let p = plugin_dir.join("output-styles");
-        if p.is_dir() { Some(p) } else { None }
+        if p.is_dir() {
+            Some(p)
+        } else {
+            None
+        }
     };
 
     // Load hooks config (hooks/hooks.json takes priority over inline manifest field).
@@ -314,10 +330,7 @@ fn collect_markdown_commands(
 ///
 /// e.g. `<plugin_dir>/commands/build/deploy.md` → `myplugin:build:deploy`
 fn command_name_from_file(path: &Path, plugin_name: &str) -> String {
-    let stem = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("cmd");
+    let stem = path.file_stem().and_then(|s| s.to_str()).unwrap_or("cmd");
     format!("{}:{}", plugin_name, stem)
 }
 

@@ -37,7 +37,11 @@ pub struct Attachment {
 
 impl Attachment {
     pub fn new(kind: AttachmentKind, content: impl Into<String>) -> Self {
-        Self { kind, content: content.into(), label: None }
+        Self {
+            kind,
+            content: content.into(),
+            label: None,
+        }
     }
 
     pub fn with_label(mut self, label: impl Into<String>) -> Self {
@@ -71,7 +75,11 @@ pub fn get_attachments(ctx: &AttachmentContext<'_>) -> Vec<Attachment> {
         if !changed.is_empty() {
             let content = format!(
                 "Files changed since last turn:\n{}",
-                changed.iter().map(|f| format!("  {}", f)).collect::<Vec<_>>().join("\n")
+                changed
+                    .iter()
+                    .map(|f| format!("  {}", f))
+                    .collect::<Vec<_>>()
+                    .join("\n")
             );
             attachments.push(Attachment::new(AttachmentKind::ChangedFiles, content));
         }
@@ -85,7 +93,7 @@ pub fn get_attachments(ctx: &AttachmentContext<'_>) -> Vec<Attachment> {
 /// Returns a formatted string like:
 /// `IDE: VS Code, workspace: /path/to/project, selection: L10-L20 in foo.rs`
 pub fn get_ide_context() -> Option<String> {
-    let lockfile_dir = dirs::home_dir()?.join(".claurst").join("ide");
+    let lockfile_dir = dirs::home_dir()?.join(".jet").join("ide");
     let entries = std::fs::read_dir(&lockfile_dir).ok()?;
 
     for entry in entries.flatten() {
@@ -155,13 +163,11 @@ pub fn get_changed_files(project_root: &Path, since_ms: u64) -> Vec<String> {
         .output();
 
     match output {
-        Ok(out) if out.status.success() => {
-            String::from_utf8_lossy(&out.stdout)
-                .lines()
-                .filter(|l| !l.is_empty())
-                .map(|l| l.to_string())
-                .collect()
-        }
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect(),
         _ => {
             // Fallback: scan for files modified since timestamp using mtime
             let since_secs = since_ms / 1000;

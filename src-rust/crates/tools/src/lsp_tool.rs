@@ -74,17 +74,11 @@ impl Tool for LspTool {
         };
 
         // line/column only required for position-based actions
-        let line = input
-            .get("line")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(1) as u32;
-        let column = input
-            .get("column")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(1) as u32;
+        let line = input.get("line").and_then(|v| v.as_u64()).unwrap_or(1) as u32;
+        let column = input.get("column").and_then(|v| v.as_u64()).unwrap_or(1) as u32;
 
         // --- Seed the global LSP manager with configs from current session ---
-        let lsp_manager_arc = claurst_core::lsp::global_lsp_manager();
+        let lsp_manager_arc = jet_core::lsp::global_lsp_manager();
         {
             let mut manager = lsp_manager_arc.lock().await;
             manager.seed_from_config(&ctx.config.lsp_servers);
@@ -202,7 +196,7 @@ impl Tool for LspTool {
                     ));
                 }
 
-                let output = claurst_core::lsp::LspManager::format_diagnostics(&diagnostics);
+                let output = jet_core::lsp::LspManager::format_diagnostics(&diagnostics);
                 ToolResult::success(output)
             }
 

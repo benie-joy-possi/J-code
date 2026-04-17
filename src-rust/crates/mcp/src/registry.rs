@@ -91,7 +91,8 @@ pub const OFFICIAL_SERVERS: &[OfficialMcpServer] = &[
     OfficialMcpServer {
         name: "sequential-thinking",
         description: "Structured chain-of-thought reasoning tool.",
-        homepage: "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
+        homepage:
+            "https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
         install_command: Some("npx -y @modelcontextprotocol/server-sequential-thinking"),
         categories: &["reasoning"],
     },
@@ -119,7 +120,8 @@ pub const OFFICIAL_SERVERS: &[OfficialMcpServer] = &[
     OfficialMcpServer {
         name: "aws-kb-retrieval",
         description: "Retrieve knowledge from AWS Bedrock Knowledge Bases.",
-        homepage: "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-kb-retrieval-server",
+        homepage:
+            "https://github.com/modelcontextprotocol/servers/tree/main/src/aws-kb-retrieval-server",
         install_command: Some("npx -y @modelcontextprotocol/server-aws-kb-retrieval"),
         categories: &["aws", "remote"],
     },
@@ -174,9 +176,9 @@ fn normalize_url(url: &str) -> Option<String> {
 /// Fire-and-forget fetch of `https://api.anthropic.com/mcp-registry/v0/servers`.
 /// Populates `OFFICIAL_URLS` so that `is_official_mcp_url` works.
 ///
-/// Skipped when `CLAURST_DISABLE_NONESSENTIAL_TRAFFIC` is set.
+/// Skipped when `jet_DISABLE_NONESSENTIAL_TRAFFIC` is set.
 pub async fn prefetch_official_mcp_urls() {
-    if std::env::var("CLAURST_DISABLE_NONESSENTIAL_TRAFFIC").is_ok() {
+    if std::env::var("jet_DISABLE_NONESSENTIAL_TRAFFIC").is_ok() {
         return;
     }
 

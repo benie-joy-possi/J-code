@@ -1,10 +1,10 @@
 // Bash tool: execute shell commands with timeout, streaming output, and
 // persistent shell state (cwd + env) across invocations.
 
-use crate::{PermissionLevel, ShellState, Tool, ToolContext, ToolResult, session_shell_state};
+use crate::{session_shell_state, PermissionLevel, ShellState, Tool, ToolContext, ToolResult};
 use async_trait::async_trait;
-use claurst_core::bash_classifier::{BashRiskLevel, classify_bash_command};
-use claurst_core::tasks::{BackgroundTask, global_registry};
+use jet_core::bash_classifier::{classify_bash_command, BashRiskLevel};
+use jet_core::tasks::{global_registry, BackgroundTask};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -31,6 +31,8 @@ struct BashInput {
     timeout: u64,
     #[serde(default)]
     run_in_background: bool,
+    #[serde(default)]
+    notify_on_complete: bool,
 }
 
 fn default_timeout() -> u64 {
@@ -61,8 +63,17 @@ fn parse_shell_state_block(lines: &[String]) -> Option<(PathBuf, HashMap<String,
             let key = line[..eq].to_string();
             let val = line[eq + 1..].to_string();
             // Filter out internal bash / system variables we don't want to persist
-            if !key.starts_with('_') && !["SHLVL", "BASH_LINENO", "BASH_SOURCE",
-                "FUNCNAME", "PIPESTATUS", "OLDPWD"].contains(&key.as_str()) {
+            if !key.starts_with('_')
+                && ![
+                    "SHLVL",
+                    "BASH_LINENO",
+                    "BASH_SOURCE",
+                    "FUNCNAME",
+                    "PIPESTATUS",
+                    "OLDPWD",
+                ]
+                .contains(&key.as_str())
+            {
                 env_vars.insert(key, val);
             }
         }
@@ -76,8 +87,9 @@ fn parse_shell_state_block(lines: &[String]) -> Option<(PathBuf, HashMap<String,
 /// constructs are handled by the full env-dump approach instead.
 fn extract_exports_from_command(command: &str) -> HashMap<String, String> {
     // Match: export VAR=value  or  export VAR="value"  or  export VAR='value'
-    let re = Regex::new(r#"(?m)^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|(\S*))"#)
-        .unwrap();
+    let re =
+        Regex::new(r#"(?m)^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)=(?:"([^"]*)"|'([^']*)'|(\S*))"#)
+            .unwrap();
     let mut map = HashMap::new();
     for cap in re.captures_iter(command) {
         let key = cap[1].to_string();
@@ -99,18 +111,11 @@ fn extract_exports_from_command(command: &str) -> HashMap<String, String> {
 /// 3. Prints the sentinel + final pwd + `env` dump so we can persist state.
 ///
 /// On Windows we skip the wrapping (cmd.exe is a different shell).
-fn build_wrapper_script(
-    command: &str,
-    state: &ShellState,
-    base_cwd: &PathBuf,
-) -> String {
-    let effective_cwd = state
-        .cwd
-        .as_ref()
-        .unwrap_or(base_cwd);
+fn build_wrapper_script(command: &str, state: &ShellState, base_cwd: &PathBuf) -> String {
+    let effective_cwd = state.cwd.as_ref().unwrap_or(base_cwd);
 
     // Escape the cwd for single-quote embedding
-    let cwd_escaped: String = effective_cwd.to_string_lossy().replace('\'', "'\\''" );
+    let cwd_escaped: String = effective_cwd.to_string_lossy().replace('\'', "'\\''");
 
     // Build export lines for persisted env vars
     let mut export_lines = String::new();
@@ -143,7 +148,13 @@ exit $__CC_EXIT_CODE
 }
 
 /// Execute a command in the background, registering it in the global task registry.
-async fn run_in_background(command: String, cwd: PathBuf, timeout_ms: u64) -> ToolResult {
+async fn run_in_background(
+    command: String,
+    cwd: PathBuf,
+    timeout_ms: u64,
+    notify_on_complete: bool,
+    completion_notifier: Option<crate::CompletionNotifier>,
+) -> ToolResult {
     let task_name = format!("bg: {}", &command[..command.len().min(60)]);
     let mut task = BackgroundTask::new(&task_name);
     task.pid = None; // Will be set after spawn
@@ -154,103 +165,162 @@ async fn run_in_background(command: String, cwd: PathBuf, timeout_ms: u64) -> To
     let command_clone = command.clone();
 
     tokio::spawn(async move {
-        let result = tokio::time::timeout(
-            Duration::from_millis(timeout_ms),
-            async {
-                let child = if cfg!(windows) {
-                    Command::new("cmd")
-                        .arg("/C")
-                        .arg(&command_clone)
-                        .current_dir(&cwd)
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::piped())
-                        .stdin(Stdio::null())
-                        .spawn()
-                } else {
-                    Command::new("bash")
-                        .arg("-c")
-                        .arg(&command_clone)
-                        .current_dir(&cwd)
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::piped())
-                        .stdin(Stdio::null())
-                        .spawn()
-                };
+        let result = tokio::time::timeout(Duration::from_millis(timeout_ms), async {
+            let child = if cfg!(windows) {
+                Command::new("cmd")
+                    .arg("/C")
+                    .arg(&command_clone)
+                    .current_dir(&cwd)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .stdin(Stdio::null())
+                    .spawn()
+            } else {
+                Command::new("bash")
+                    .arg("-c")
+                    .arg(&command_clone)
+                    .current_dir(&cwd)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .stdin(Stdio::null())
+                    .spawn()
+            };
 
-                match child {
-                    Ok(mut c) => {
-                        // Record PID in the registry.
-                        if let Some(pid) = c.id() {
-                            global_registry().set_pid(&task_id_clone, pid);
-                        }
+            match child {
+                Ok(mut c) => {
+                    // Record PID in the registry.
+                    if let Some(pid) = c.id() {
+                        global_registry().set_pid(&task_id_clone, pid);
+                    }
 
-                        let stdout = c.stdout.take();
-                        let stderr = c.stderr.take();
+                    let stdout = c.stdout.take();
+                    let stderr = c.stderr.take();
 
-                        if let Some(out) = stdout {
-                            let mut lines = BufReader::new(out).lines();
-                            while let Ok(Some(line)) = lines.next_line().await {
-                                global_registry().append_output(&task_id_clone, &line);
-                            }
-                        }
-                        if let Some(err) = stderr {
-                            let mut lines = BufReader::new(err).lines();
-                            while let Ok(Some(line)) = lines.next_line().await {
-                                let err_line = format!("STDERR: {}", line);
-                                global_registry().append_output(&task_id_clone, &err_line);
-                            }
-                        }
-
-                        match c.wait().await {
-                            Ok(status) if status.success() => {
-                                global_registry().complete(&task_id_clone);
-                            }
-                            Ok(status) => {
-                                let code = status.code().unwrap_or(-1);
-                                global_registry().update_status(
-                                    &task_id_clone,
-                                    claurst_core::tasks::TaskStatus::Failed(
-                                        format!("exit code {}", code)
-                                    ),
-                                );
-                            }
-                            Err(e) => {
-                                global_registry().update_status(
-                                    &task_id_clone,
-                                    claurst_core::tasks::TaskStatus::Failed(e.to_string()),
-                                );
-                            }
+                    if let Some(out) = stdout {
+                        let mut lines = BufReader::new(out).lines();
+                        while let Ok(Some(line)) = lines.next_line().await {
+                            global_registry().append_output(&task_id_clone, &line);
                         }
                     }
-                    Err(e) => {
-                        global_registry().update_status(
-                            &task_id_clone,
-                            claurst_core::tasks::TaskStatus::Failed(e.to_string()),
-                        );
+                    if let Some(err) = stderr {
+                        let mut lines = BufReader::new(err).lines();
+                        while let Ok(Some(line)) = lines.next_line().await {
+                            let err_line = format!("STDERR: {}", line);
+                            global_registry().append_output(&task_id_clone, &err_line);
+                        }
+                    }
+
+                    match c.wait().await {
+                        Ok(status) if status.success() => {
+                            global_registry().complete(&task_id_clone);
+                        }
+                        Ok(status) => {
+                            let code = status.code().unwrap_or(-1);
+                            global_registry().update_status(
+                                &task_id_clone,
+                                jet_core::tasks::TaskStatus::Failed(format!(
+                                    "exit code {}",
+                                    code
+                                )),
+                            );
+                        }
+                        Err(e) => {
+                            global_registry().update_status(
+                                &task_id_clone,
+                                jet_core::tasks::TaskStatus::Failed(e.to_string()),
+                            );
+                        }
                     }
                 }
+                Err(e) => {
+                    global_registry().update_status(
+                        &task_id_clone,
+                        jet_core::tasks::TaskStatus::Failed(e.to_string()),
+                    );
+                }
             }
-        )
+        })
         .await;
 
         if result.is_err() {
             global_registry().update_status(
                 &task_id_clone,
-                claurst_core::tasks::TaskStatus::Failed(format!("timed out after {}ms", timeout_ms)),
+                jet_core::tasks::TaskStatus::Failed(format!(
+                    "timed out after {}ms",
+                    timeout_ms
+                )),
             );
         }
     });
 
-    ToolResult::success(format!(
-        "Command started in background.\nTask ID: {}\nCommand: {}",
-        task_id, command
-    ))
+    // If notify_on_complete is requested and a notifier is available, spawn a
+    // watcher task that polls the registry until the task reaches a terminal
+    // state, then injects a completion message into the agent's next turn.
+    if notify_on_complete {
+        if let Some(notifier) = completion_notifier {
+            let watcher_task_id = task_id.clone();
+            let watcher_command = command.clone();
+            tokio::spawn(async move {
+                loop {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    let task = global_registry().get(&watcher_task_id);
+                    match task {
+                        Some(t)
+                            if matches!(
+                                t.status,
+                                jet_core::tasks::TaskStatus::Completed
+                                    | jet_core::tasks::TaskStatus::Failed(_)
+                                    | jet_core::tasks::TaskStatus::Cancelled
+                            ) =>
+                        {
+                            let exit_info = match &t.status {
+                                jet_core::tasks::TaskStatus::Completed => "exit 0".to_string(),
+                                jet_core::tasks::TaskStatus::Failed(msg) => {
+                                    format!("failed: {}", msg)
+                                }
+                                jet_core::tasks::TaskStatus::Cancelled => {
+                                    "cancelled".to_string()
+                                }
+                                _ => unreachable!(),
+                            };
+                            let output = t.output.join("\n");
+                            let output_tail = if output.len() > 2000 {
+                                &output[output.len() - 2000..]
+                            } else {
+                                &output
+                            };
+                            let msg = format!(
+                                "[Monitor] Background task {} completed ({}).\nCommand: {}\nOutput (last 2000 chars):\n{}",
+                                watcher_task_id, exit_info, watcher_command, output_tail
+                            );
+                            notifier.notify(msg);
+                            break;
+                        }
+                        None => break, // Task disappeared from registry
+                        _ => {}        // Still running, keep polling
+                    }
+                }
+            });
+        }
+    }
+
+    if notify_on_complete {
+        ToolResult::success(format!(
+            "Started background task {}.\nnotify_on_complete: enabled — you will be automatically notified when this task finishes.\nUse process_list or check task {} to monitor progress.\nCommand: {}",
+            task_id, task_id, command
+        ))
+    } else {
+        ToolResult::success(format!(
+            "Command started in background.\nTask ID: {}\nCommand: {}",
+            task_id, command
+        ))
+    }
 }
 
 #[async_trait]
 impl Tool for BashTool {
     fn name(&self) -> &str {
-        claurst_core::constants::TOOL_NAME_BASH
+        jet_core::constants::TOOL_NAME_BASH
     }
 
     fn description(&self) -> &str {
@@ -284,6 +354,11 @@ impl Tool for BashTool {
                 "run_in_background": {
                     "type": "boolean",
                     "description": "Set to true to run command in the background"
+                },
+                "notify_on_complete": {
+                    "type": "boolean",
+                    "description": "When true (and run_in_background is also true), the agent will be automatically notified when the process finishes — no polling needed. Use for long-running tasks like test suites, builds, or deployments so you can keep working while they run.",
+                    "default": false
                 }
             },
             "required": ["command"]
@@ -322,7 +397,14 @@ impl Tool for BashTool {
                 let state = shell_state_arc.lock();
                 state.cwd.clone().unwrap_or_else(|| ctx.working_dir.clone())
             };
-            return run_in_background(params.command, cwd, timeout_ms).await;
+            return run_in_background(
+                params.command,
+                cwd,
+                timeout_ms,
+                params.notify_on_complete,
+                ctx.completion_notifier.clone(),
+            )
+            .await;
         }
 
         // ── Foreground path ──────────────────────────────────────────────────
@@ -332,7 +414,15 @@ impl Tool for BashTool {
 
         // On Windows fall back to a simpler cmd invocation without state wrapping.
         if cfg!(windows) {
-            return self.execute_windows(&params.command, ctx, &shell_state_arc, timeout_dur, timeout_ms).await;
+            return self
+                .execute_windows(
+                    &params.command,
+                    ctx,
+                    &shell_state_arc,
+                    timeout_dur,
+                    timeout_ms,
+                )
+                .await;
         }
 
         // Build a wrapper script that restores and then captures shell state.
@@ -384,9 +474,7 @@ impl Tool for BashTool {
 
         match result {
             Ok((stdout_lines, stderr_lines, status)) => {
-                let exit_code = status
-                    .map(|s| s.code().unwrap_or(-1))
-                    .unwrap_or(-1);
+                let exit_code = status.map(|s| s.code().unwrap_or(-1)).unwrap_or(-1);
 
                 // Split stdout into user-visible output and the state block.
                 let sentinel_pos = stdout_lines
@@ -555,7 +643,10 @@ impl BashTool {
                     );
                 }
                 if exit_code != 0 {
-                    ToolResult::error(format!("Command exited with code {}\n{}", exit_code, output))
+                    ToolResult::error(format!(
+                        "Command exited with code {}\n{}",
+                        exit_code, output
+                    ))
                 } else {
                     ToolResult::success(output)
                 }
@@ -565,5 +656,51 @@ impl BashTool {
                 ToolResult::error(format!("Command timed out after {}ms", timeout_ms))
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn notify_on_complete_in_schema() {
+        let tool = BashTool;
+        let schema = tool.input_schema();
+        let props = &schema["properties"];
+        assert!(
+            props["notify_on_complete"].is_object(),
+            "notify_on_complete should be in the schema"
+        );
+        assert_eq!(
+            props["notify_on_complete"]["type"], "boolean",
+            "notify_on_complete should be boolean"
+        );
+    }
+
+    #[test]
+    fn notify_on_complete_default_false() {
+        let input: BashInput = serde_json::from_str(r#"{"command":"echo hi"}"#).unwrap();
+        assert!(
+            !input.notify_on_complete,
+            "notify_on_complete should default to false"
+        );
+    }
+
+    #[test]
+    fn notify_on_complete_can_be_set_true() {
+        let input: BashInput =
+            serde_json::from_str(r#"{"command":"echo hi","notify_on_complete":true}"#).unwrap();
+        assert!(input.notify_on_complete);
+    }
+
+    #[test]
+    fn run_in_background_default_false() {
+        let input: BashInput = serde_json::from_str(r#"{"command":"echo hi"}"#).unwrap();
+        assert!(!input.run_in_background);
     }
 }

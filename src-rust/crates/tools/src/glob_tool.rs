@@ -19,7 +19,7 @@ struct GlobInput {
 #[async_trait]
 impl Tool for GlobTool {
     fn name(&self) -> &str {
-        claurst_core::constants::TOOL_NAME_GLOB
+        jet_core::constants::TOOL_NAME_GLOB
     }
 
     fn description(&self) -> &str {
@@ -65,10 +65,7 @@ impl Tool for GlobTool {
         debug!(pattern = %params.pattern, dir = %base_dir.display(), "Running glob");
 
         if !base_dir.exists() || !base_dir.is_dir() {
-            return ToolResult::error(format!(
-                "Directory not found: {}",
-                base_dir.display()
-            ));
+            return ToolResult::error(format!("Directory not found: {}", base_dir.display()));
         }
 
         // Build the full glob pattern

@@ -31,7 +31,7 @@ fn url_hash(url: &str) -> String {
 /// Get the cache directory for web_fetch content.
 fn get_cache_dir() -> PathBuf {
     let mut dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    dir.push(".claurst");
+    dir.push(".jet");
     dir.push("web_cache");
     dir
 }
@@ -82,9 +82,8 @@ fn is_edge_case_html(html: &str, extracted_text: &str) -> bool {
 
     // Check for semantic HTML tags
     let lower = html.to_lowercase();
-    let has_semantic = lower.contains("<article") ||
-                      lower.contains("<main") ||
-                      lower.contains("<body");
+    let has_semantic =
+        lower.contains("<article") || lower.contains("<main") || lower.contains("<body");
 
     if !has_semantic {
         debug!("Edge case: no semantic HTML tags");
@@ -97,7 +96,7 @@ fn is_edge_case_html(html: &str, extracted_text: &str) -> bool {
 /// Call Claude Haiku to extract main content from HTML.
 async fn semantic_extraction(html: &str, ctx: &ToolContext) -> Option<String> {
     // Try to create an Anthropic client from the config
-    let client = match claurst_api::AnthropicClient::from_config(&ctx.config) {
+    let client = match jet_api::AnthropicClient::from_config(&ctx.config) {
         Ok(c) => c,
         Err(e) => {
             warn!(error = %e, "Failed to create Anthropic client for semantic extraction");
@@ -119,14 +118,14 @@ async fn semantic_extraction(html: &str, ctx: &ToolContext) -> Option<String> {
     );
 
     // Use the builder API to construct the request
-    let api_messages = vec![claurst_api::ApiMessage {
+    let api_messages = vec![jet_api::ApiMessage {
         role: "user".to_string(),
         content: serde_json::Value::String(user_message),
     }];
 
-    let request = claurst_api::CreateMessageRequest::builder("claude-haiku-4-5", 2000)
+    let request = jet_api::CreateMessageRequest::builder("claude-haiku-4-5", 2000)
         .messages(api_messages)
-        .system(claurst_api::SystemPrompt::Text(system.to_string()))
+        .system(jet_api::SystemPrompt::Text(system.to_string()))
         .build();
 
     match client.create_message(request).await {
@@ -142,7 +141,10 @@ async fn semantic_extraction(html: &str, ctx: &ToolContext) -> Option<String> {
             });
 
             if let Some(extracted) = text {
-                debug!(extracted_len = extracted.len(), "Semantic extraction successful");
+                debug!(
+                    extracted_len = extracted.len(),
+                    "Semantic extraction successful"
+                );
                 return Some(extracted);
             }
 
@@ -185,9 +187,9 @@ fn strip_html(html: &str) -> String {
             }
             // Block tags => newline
             let block_tags = [
-                "<br", "<p ", "<p>", "</p>", "<div", "</div>", "<h1", "<h2", "<h3",
-                "<h4", "<h5", "<h6", "</h1", "</h2", "</h3", "</h4", "</h5", "</h6",
-                "<li", "</li", "<tr", "</tr", "<hr",
+                "<br", "<p ", "<p>", "</p>", "<div", "</div>", "<h1", "<h2", "<h3", "<h4", "<h5",
+                "<h6", "</h1", "</h2", "</h3", "</h4", "</h5", "</h6", "<li", "</li", "<tr",
+                "</tr", "<hr",
             ];
             for tag in &block_tags {
                 if rest.starts_with(tag) {
@@ -267,7 +269,7 @@ fn strip_html(html: &str) -> String {
 #[async_trait]
 impl Tool for WebFetchTool {
     fn name(&self) -> &str {
-        claurst_core::constants::TOOL_NAME_WEB_FETCH
+        jet_core::constants::TOOL_NAME_WEB_FETCH
     }
 
     fn description(&self) -> &str {
@@ -324,7 +326,8 @@ impl Tool for WebFetchTool {
             Err(e) => return ToolResult::error(format!("Failed to create HTTP client: {}", e)),
         };
 
-        let resp = match client.get(&params.url)
+        let resp = match client
+            .get(&params.url)
             .header("User-Agent", "Claude-Code/1.0")
             .send()
             .await
@@ -335,10 +338,7 @@ impl Tool for WebFetchTool {
 
         let status = resp.status();
         if !status.is_success() {
-            return ToolResult::error(format!(
-                "HTTP {} when fetching {}",
-                status, params.url
-            ));
+            return ToolResult::error(format!("HTTP {} when fetching {}", status, params.url));
         }
 
         let content_type = resp

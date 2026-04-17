@@ -3,7 +3,7 @@
 // Port of src/services/remoteManagedSettings/index.ts
 //
 // Fetches enterprise-managed settings from Anthropic's API, caches them to
-// ~/.claurst/remote-settings.json, and polls every hour in the background.
+// ~/.jet/remote-settings.json, and polls every hour in the background.
 // Fails open — if the fetch fails, the app continues without remote settings.
 //
 // Eligibility:
@@ -69,7 +69,7 @@ impl Default for RemoteSettingsConfig {
     }
 }
 
-/// On-disk cache structure stored in ~/.claurst/remote-settings.json.
+/// On-disk cache structure stored in ~/.jet/remote-settings.json.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RemoteSettingsCache {
     /// The cached settings object (may be empty `{}`).
@@ -145,14 +145,8 @@ impl RemoteSettingsManager {
         }
         if let Some(ref token) = self.config.oauth_token {
             if !token.is_empty() {
-                headers.insert(
-                    "Authorization".to_string(),
-                    format!("Bearer {}", token),
-                );
-                headers.insert(
-                    "anthropic-beta".to_string(),
-                    "oauth-2025-04-20".to_string(),
-                );
+                headers.insert("Authorization".to_string(), format!("Bearer {}", token));
+                headers.insert("anthropic-beta".to_string(), "oauth-2025-04-20".to_string());
                 return Some(headers);
             }
         }
@@ -229,15 +223,14 @@ impl RemoteSettingsManager {
 
         // Try to parse as the expected response shape, but be permissive —
         // accept raw settings object if the wrapper is missing.
-        let (settings, _checksum) = if let Ok(parsed) =
-            serde_json::from_value::<RemoteSettingsResponse>(body.clone())
-        {
-            (parsed.settings, parsed.checksum)
-        } else if body.is_object() {
-            (body, None)
-        } else {
-            anyhow::bail!("Remote settings: unexpected response shape");
-        };
+        let (settings, _checksum) =
+            if let Ok(parsed) = serde_json::from_value::<RemoteSettingsResponse>(body.clone()) {
+                (parsed.settings, parsed.checksum)
+            } else if body.is_object() {
+                (body, None)
+            } else {
+                anyhow::bail!("Remote settings: unexpected response shape");
+            };
 
         Ok(Some(settings))
     }
@@ -291,10 +284,7 @@ impl RemoteSettingsManager {
             .as_ref()
             .map(|s| compute_checksum_from_settings(s));
 
-        match self
-            .fetch_with_retry(cached_checksum.as_deref())
-            .await
-        {
+        match self.fetch_with_retry(cached_checksum.as_deref()).await {
             Ok(Some(new_settings)) => {
                 // Got fresh settings — persist and return.
                 let checksum = compute_checksum_from_settings(&new_settings);
@@ -405,11 +395,11 @@ pub fn merge_remote_into_local(local: &Value, remote: &Value) -> Value {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Return the ~/.claurst directory, falling back to the current directory.
+/// Return the ~/.jet directory, falling back to the current directory.
 fn claude_config_dir() -> PathBuf {
     dirs::home_dir()
-        .map(|h| h.join(".claurst"))
-        .unwrap_or_else(|| PathBuf::from(".claurst"))
+        .map(|h| h.join(".jet"))
+        .unwrap_or_else(|| PathBuf::from(".jet"))
 }
 
 /// Exponential backoff delay for retry attempt `n` (1-indexed).
